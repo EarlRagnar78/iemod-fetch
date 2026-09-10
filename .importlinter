@@ -1,0 +1,103 @@
+# Architecture tests. The layering below is not a diagram in a document that
+# drifts: it is a gate, and CI fails when an import crosses a boundary.
+#
+# The shape is functional core / imperative shell (ADR-0019):
+#
+#   core     naming, errors, versions, weidu, tp2, modmeta, manifest,
+#            catalogues, moddb, rules, ordering, conflicts, plan, report,
+#            config, pinning
+#            -> pure. Parse, compare, decide. No sockets, no subprocesses.
+#   shell    net, auth, archives, install, orgindex, resolvers, runner, cli
+#            -> everything that touches the network, the filesystem or a
+#               subprocess.
+#
+# The core is where the interesting logic lives, and it is testable with no
+# fixtures, no mocks and no clock. That property is worth defending mechanically.
+
+[importlinter]
+root_packages =
+    iemod_fetch
+include_external_packages = True
+
+[importlinter:contract:core-is-pure]
+name = The functional core imports nothing from the imperative shell
+type = forbidden
+source_modules =
+    iemod_fetch.naming
+    iemod_fetch.errors
+    iemod_fetch.urls
+    iemod_fetch.versions
+    iemod_fetch.weidu
+    iemod_fetch.tp2
+    iemod_fetch.modmeta
+    iemod_fetch.manifest
+    iemod_fetch.catalogues
+    iemod_fetch.moddb
+    iemod_fetch.rules
+    iemod_fetch.ordering
+    iemod_fetch.conflicts
+    iemod_fetch.plan
+    iemod_fetch.report
+    iemod_fetch.config
+    iemod_fetch.pinning
+forbidden_modules =
+    iemod_fetch.net
+    iemod_fetch.auth
+    iemod_fetch.archives
+    iemod_fetch.install
+    iemod_fetch.orgindex
+    iemod_fetch.resolvers
+    iemod_fetch.runner
+    iemod_fetch.cli
+
+[importlinter:contract:no-third-party-at-runtime]
+name = The runtime depends on the standard library only (ADR-0002)
+type = forbidden
+source_modules =
+    iemod_fetch
+    iemod_fetch.net
+    iemod_fetch.runner
+forbidden_modules =
+    requests
+    urllib3
+    httpx
+    aiohttp
+    yaml
+    pydantic
+    click
+    typer
+    rich
+    tomli
+
+[importlinter:contract:cli-is-the-only-entry-point]
+name = Nothing imports the CLI except the entry point
+type = forbidden
+source_modules =
+    iemod_fetch.net
+    iemod_fetch.auth
+    iemod_fetch.archives
+    iemod_fetch.install
+    iemod_fetch.orgindex
+    iemod_fetch.resolvers
+    iemod_fetch.runner
+forbidden_modules =
+    iemod_fetch.cli
+
+[importlinter:contract:layers]
+name = Layered: cli over runner over resolvers/install over net/archives over core
+type = layers
+layers =
+    iemod_fetch.cli
+    iemod_fetch.runner
+    iemod_fetch.resolvers | iemod_fetch.install | iemod_fetch.orgindex
+    iemod_fetch.net
+    iemod_fetch.archives | iemod_fetch.auth
+    iemod_fetch.plan | iemod_fetch.report
+    iemod_fetch.conflicts
+    iemod_fetch.ordering
+    iemod_fetch.rules
+    iemod_fetch.manifest | iemod_fetch.catalogues | iemod_fetch.moddb
+    iemod_fetch.weidu | iemod_fetch.tp2 | iemod_fetch.modmeta | iemod_fetch.versions
+    iemod_fetch.urls
+    iemod_fetch.naming
+    iemod_fetch.errors

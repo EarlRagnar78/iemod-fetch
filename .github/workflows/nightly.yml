@@ -1,0 +1,91 @@
+# The slow gates. Kept off the pull-request path deliberately: a contributor
+# should not wait twenty minutes for a mutation run, and a nightly failure is a
+# message to the maintainer, not a blocked pull request.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[test,mutation]"
+
+      # Coverage says a line ran. Mutation testing says the tests would have
+      # NOTICED if that line were wrong, which is the thing coverage is
+      # routinely mistaken for. Reported, never gating: a surviving mutant is a
+      # question ("is this behaviour actually asserted?"), not a defect.
+      - name: mutmut
+        continue-on-error: true
+        run: |
+          mutmut run --paths-to-mutate iemod_fetch/ || true
+          mutmut results > mutants.txt || true
+      - uses: actions/upload-artifact@v4
+        with: { name: mutation-report, path: mutants.txt, retention-days: 30 }
+
+  deep-properties:
+    name: Property tests, long run
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[test]"
+
+      # The pull-request run uses 300 examples so it stays fast. Overnight it
+      # gets 20,000, which is where the rare counterexample lives.
+      - name: Hypothesis with a much larger budget
+        env:
+          HYPOTHESIS_PROFILE: nightly
+        run: python -m pytest tests/test_properties.py -q
+
+  rule-data-drift:
+    name: Upstream rule data still parses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[test]"
+
+      # The rule databases are other people's repositories and they change under
+      # us. This is not a test of their content — it is notice that a schema
+      # change has broken the reader, before an operator finds out mid-install.
+      - name: Clone the upstream catalogues
+        run: |
+          git clone --depth 1 https://github.com/Selphira/BigWorldSetup-Next-Generation.git bws
+          git clone --depth 1 https://github.com/krion64/krion64.github.io.git krion
+      - name: Parse them and report the counts
+        run: |
+          python - <<'PY'
+          from iemod_fetch.ordering import OrderIndex
+          from iemod_fetch.rules import RuleSet
+          bws = RuleSet.load(["bws/data/rules"])
+          krion = RuleSet.load(["krion/data/mods"])
+          index = OrderIndex.load("krion")
+          print(f"BWS-NG   : {len(bws)} rules, {len(bws.warnings)} warnings")
+          print(f"krion64  : {len(krion)} rules, {len(krion.notes)} known issues, "
+                f"{len(krion.warnings)} warnings")
+          print(f"ordering : {len(index)} mods, {len(index.categories)} categories, "
+                f"{len(index.warnings)} warnings")
+          # A total collapse means the upstream schema moved, not that everyone
+          # deleted their rules. Thresholds are floors, not expectations.
+          assert len(bws) > 400, "BWS-NG rule count collapsed - schema change?"
+          assert len(krion) > 300, "krion64 rule count collapsed - schema change?"
+          assert len(index) > 500, "krion64 ordering index collapsed - schema change?"
+          PY

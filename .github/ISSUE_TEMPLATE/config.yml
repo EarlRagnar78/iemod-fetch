@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/gsamuele78/iemod-fetch/security/advisories/new
+    about: Report privately. Please do not open a public issue.
+  - name: A mod will not download
+    url: https://github.com/gsamuele78/iemod-fetch/issues/new?template=resolution.yml
+    about: Use the resolution-failure template so the report has the output in it.

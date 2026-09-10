@@ -1,0 +1,17 @@
+{
+  "_comment": "Rules you have checked and found no longer apply. A community rule set carries no version qualifier, so this file is how a fix gets recorded. Each entry should say WHY and WHEN you verified it - a suppression with no reason is indistinguishable from a mistake a year later.",
+  "suppressions": [
+    {
+      "mods": ["infinity_ui", "HiddenGameplayOptions"],
+      "kind": "incompatible",
+      "reason": "author fixed the overlap; see the mod's changelog",
+      "verified_on": "2026-09-09",
+      "verified_version": { "HiddenGameplayOptions": "5.2" }
+    },
+    {
+      "mods": ["stratagems", "cdtweaks"],
+      "kind": "order",
+      "reason": "installed in this order deliberately; verified in game"
+    }
+  ]
+}

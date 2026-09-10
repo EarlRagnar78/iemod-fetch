@@ -1,0 +1,24 @@
+{
+ "postEet": "POST EET",
+ "eetFinal": "EET FINALIZATION",
+ "categories": {
+  "PRE EET BGEE MODS": {
+   "label": "Pre-EET (BG1)"
+  },
+  "EET STARTS HERE": {
+   "label": "EET Core"
+  },
+  "ENGINE": {
+   "label": "Engine"
+  },
+  "PRE-TACTICAL TWEAKS": {
+   "label": "Pre-Tactical Tweaks"
+  },
+  "TACTICAL MODS": {
+   "label": "Tactical"
+  },
+  "EET FINALIZATION": {
+   "label": "EET Finalization"
+  }
+ }
+}

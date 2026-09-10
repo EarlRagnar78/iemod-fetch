@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+.venv/
+venv/
+.env
+
+# Built artifacts: reproducible from `python3 build.py`, so not tracked.
+iemod-fetch.pyz
+*.sbom.json
+
+# Operator files: someone's own catalogue, logs and staged mods.
+/Mods/
+/plan/
+iemod-fetch.ini
+conflicts.json
+*.token
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

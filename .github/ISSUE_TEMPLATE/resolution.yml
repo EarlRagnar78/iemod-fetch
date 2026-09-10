@@ -1,0 +1,47 @@
+name: A mod will not download
+description: The tool could not resolve or verify a mod, and you think it should have.
+labels: [resolution]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Before filing: the tool refuses to guess on purpose (ADR-0006). If it
+        reported the mod as unresolved with a suggestion, that may be the
+        correct behaviour and the fix is a pinned URL in your manifest. File
+        this when the mod IS reachable by a rule the tool should already follow.
+
+  - type: input
+    id: mod
+    attributes:
+      label: Mod folder / tp2 key
+    validations: { required: true }
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What the tool reported
+      description: The lines for this mod from the run, verbatim.
+      render: shell
+    validations: { required: true }
+
+  - type: input
+    id: url
+    attributes:
+      label: The URL it should have found
+    validations: { required: true }
+
+  - type: dropdown
+    id: why
+    attributes:
+      label: Why do you believe the tool should have found it unattended?
+      options:
+        - It is a GitHub release asset in a repository the manifest names
+        - It is a direct archive link on the mod's own landing page
+        - The catalogue (LCC / BWS-NG / krion64) lists a direct URL for it
+        - Something else, described below
+    validations: { required: true }
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

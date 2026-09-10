@@ -1,0 +1,11 @@
+{
+ "t": "cdtweaks",
+ "c": "PRE-TACTICAL TWEAKS",
+ "ord": 20,
+ "co": [
+  {
+   "wf": "cdtweaks",
+   "wp": "cdtweaks\\setup-cdtweaks.tp2"
+  }
+ ]
+}

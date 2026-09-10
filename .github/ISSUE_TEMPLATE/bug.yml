@@ -1,0 +1,48 @@
+name: Bug report
+description: Something behaves differently from what it says it does.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran and the output, verbatim. Redact any token.
+      render: shell
+    validations: { required: true }
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations: { required: true }
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`python iemod-fetch.pyz --version`"
+    validations: { required: true }
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, Linux, macOS, other]
+    validations: { required: true }
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: "`python --version`"
+    validations: { required: true }
+
+  - type: textarea
+    id: data
+    attributes:
+      label: The relevant input
+      description: >
+        The manifest entry, the WeiDU.log lines, or the rule that misfired.
+        A small excerpt beats a whole file, and it is what a test gets written
+        from.
+      render: text

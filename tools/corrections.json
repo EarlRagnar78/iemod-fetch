@@ -1,0 +1,45 @@
+{
+  "_comment": "Manifest corrections with provenance. Each entry records WHY the change was made and where the claim came from, so it can be re-reviewed. Applied by tools/apply_corrections.py. Verify before trusting: a repository name found by web search is a strong hint, not proof that it is the same mod your WeiDU.log installed.",
+  "corrections": [
+    {
+      "tp2": "SirinesCall",
+      "reason": "was cleartext http:// to a dead-ish pocketplane CMS URL; mod migrated to GitHub",
+      "evidence": "https://github.com/Pocket-Plane-Group/Lure_Of_Sirines_Call - repo confirmed, publishes releases, contains a 'SirinesCall' folder matching the WeiDU log",
+      "confidence": "high",
+      "set": {
+        "url": "https://github.com/Pocket-Plane-Group/Lure_Of_Sirines_Call/releases",
+        "github": "Pocket-Plane-Group/Lure_Of_Sirines_Call"
+      }
+    },
+    {
+      "tp2": "FishingForTrouble",
+      "reason": "was cleartext http:// to shsforums file page; SHS mods migrated to GitHub",
+      "evidence": "https://github.com/Spellhold-Studios/FishingForTrouble - repo confirmed (github.com/InfinityMods/FishingForTrouble redirects here), publishes releases, folder 'FishingForTrouble' matches the WeiDU log",
+      "confidence": "high",
+      "set": {
+        "url": "https://github.com/Spellhold-Studios/FishingForTrouble/releases",
+        "github": "Spellhold-Studios/FishingForTrouble"
+      }
+    },
+    {
+      "tp2": "FowlWish",
+      "reason": "url pointed at a GitHub USER PROFILE (github.com/Glittergear), not a repository, and 'github' was null - the entry could never resolve",
+      "evidence": "https://github.com/Glittergear/A-Fowl-Wish - the mod's actual repository",
+      "confidence": "high",
+      "set": {
+        "url": "https://github.com/Glittergear/A-Fowl-Wish/releases",
+        "github": "Glittergear/A-Fowl-Wish"
+      }
+    },
+    {
+      "tp2": "haerdalisromance",
+      "reason": "cleartext http://. No GitHub mirror of the ROMANCE mod exists - SpellholdStudios/HaerdalisFriendship is a DIFFERENT mod with a different tp2 and must not be substituted. Only the URL scheme is changed.",
+      "evidence": "UNVERIFIED: shsforums.net is blocked by this environment's egress proxy, so https support could not be confirmed. If https fails, the tool reports MANUAL rather than silently falling back to http.",
+      "confidence": "low - verify locally",
+      "set": {
+        "url": "https://www.shsforums.net/files/file/984-haerdalis-romance/",
+        "notes": "https scheme unverified; if resolution fails, download manually from the SHS file page"
+      }
+    }
+  ]
+}

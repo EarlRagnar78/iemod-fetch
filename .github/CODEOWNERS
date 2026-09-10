@@ -1,0 +1,11 @@
+# Everything, by default.
+*                       @gsamuele78
+
+# The parts where a mistake is expensive: a change here should never merge
+# without the owner having read it.
+/iemod_fetch/net.py     @gsamuele78
+/iemod_fetch/archives.py @gsamuele78
+/iemod_fetch/naming.py  @gsamuele78
+/iemod_fetch/auth.py    @gsamuele78
+/.github/workflows/     @gsamuele78
+/docs/ADR.md            @gsamuele78

@@ -1,0 +1,228 @@
+# Packaging and tool configuration.
+#
+# One rule governs this file: the RUNTIME has no third-party dependency and
+# never will (ADR-0002). `dependencies` is empty and must stay empty — an
+# operator downloads one `.pyz` and runs it against the Python their game
+# machine already has. Everything under `optional-dependencies` is developer
+# tooling that CI installs and the shipped artifact never sees.
+
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "iemod-fetch"
+version = "2.0.0"
+description = "Resolve, verify and stage Infinity Engine mods from a WeiDU log, and plan a rule-compliant install order"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "gsamuele78" }]
+keywords = ["infinity-engine", "weidu", "baldurs-gate", "eet", "modding",
+            "project-infinity", "install-order"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Games/Entertainment",
+  "Topic :: System :: Archiving :: Packaging",
+  "Typing :: Typed",
+]
+dependencies = []          # deliberately empty — see the note above
+
+[project.urls]
+Homepage = "https://github.com/gsamuele78/iemod-fetch"
+Documentation = "https://github.com/gsamuele78/iemod-fetch/tree/main/docs"
+Issues = "https://github.com/gsamuele78/iemod-fetch/issues"
+Changelog = "https://github.com/gsamuele78/iemod-fetch/blob/main/CHANGELOG.md"
+
+[project.scripts]
+iemod-fetch = "iemod_fetch.cli:main"
+
+[project.optional-dependencies]
+# Split so CI jobs install only what they need and a failure names its own gate.
+test = ["pytest>=7.4", "hypothesis>=6.100", "coverage[toml]>=7.4"]
+lint = ["ruff>=0.6"]
+typing = ["mypy>=1.11"]
+security = ["bandit[toml]>=1.7", "pip-audit>=2.7"]
+arch = ["import-linter>=2.0"]
+mutation = ["mutmut>=3.0"]
+dev = [
+  "iemod-fetch[test,lint,typing,security,arch]",
+  "pre-commit>=3.7",
+  "build>=1.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["iemod_fetch"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/iemod_fetch", "/tests", "/docs", "/tools", "/legacy",
+           "/build.py", "/aliases.json", "/README.md", "/LICENSE", "/CHANGELOG.md"]
+
+
+# ------------------------------------------------------------------ pytest
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+# `-q` by default, and every warning is an error: a DeprecationWarning from the
+# stdlib is the earliest possible notice that a future Python will break this.
+addopts = "-q --strict-markers --strict-config -W error"
+filterwarnings = [
+  "error",
+  # Hypothesis emits this on slow CI runners; it is a timing observation, not a
+  # defect in the code under test.
+  "ignore::hypothesis.errors.NonInteractiveExampleWarning",
+]
+markers = [
+  "slow: excluded from the pull-request run, kept for the nightly job",
+]
+
+
+# ---------------------------------------------------------------- coverage
+[tool.coverage.run]
+branch = true
+source = ["iemod_fetch"]
+parallel = true
+
+[tool.coverage.report]
+# Not 100. A coverage target above what the code honestly reaches turns into
+# tests written to touch lines rather than to assert behaviour, and the mutation
+# score (nightly) is the metric that actually says whether the tests assert
+# anything. This number is a floor against regression, not a goal.
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "\\.\\.\\.",
+]
+
+
+# -------------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 92
+target-version = "py39"
+src = ["iemod_fetch", "tests", "tools"]
+
+[tool.ruff.lint]
+# Chosen, not defaulted. Each family earns its place; the ones left out are
+# listed with the reason, because an unexplained `ignore` is a decision nobody
+# can revisit.
+select = [
+  "F",      # pyflakes: real errors
+  "E", "W", # pycodestyle
+  "B",      # bugbear: mutable defaults, loop-variable capture, blind except
+  "C4",     # comprehension misuse
+  "SIM",    # simplifiable constructs
+  "RET",    # return-path consistency
+  "PIE",    # misc lints
+  "PERF",   # obvious performance traps
+  "RSE",    # raise ... from
+  "TID",    # tidy imports (banned relative depth)
+  "ICN",    # import conventions
+  "ISC",    # implicit string concat across lines
+  "LOG", "G",  # logging call shape
+  "A",      # shadowing builtins
+  "ARG",    # unused arguments
+  "S",      # bandit rules that are cheap to check at lint time
+  "PLE",    # pylint errors only
+  "PLW",    # pylint warnings
+  "FURB",   # modernisation that does not break 3.9
+  "T20",    # print() outside the renderers
+]
+ignore = [
+  # Deliberate, with reasons:
+  "S101",    # assert — only in tests, where it is the point
+  "S603",    # subprocess without shell — 7z/git-credential, argv lists, no shell
+  "S607",    # partial executable path — `gh`/`git` are resolved via PATH by design
+  "S310",    # urlopen scheme audit — net.py enforces the scheme itself, tested
+  "E501",    # line length is enforced by the formatter, not twice
+  "SIM108",  # ternary-instead-of-if hurts readability in the parsers
+  "RET504",  # a named result before return is often the documentation
+  "ISC001",  # conflicts with the formatter
+  # A micro-optimisation lint. This tool spends its time on the network, and
+  # every site it fires on is a loop with a condition and an explanatory
+  # comment that a comprehension would flatten into something harder to read.
+  "PERF401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The renderers ARE the output; `print` is their job.
+"iemod_fetch/report.py" = ["T20"]
+"iemod_fetch/ordering.py" = ["T20"]
+"iemod_fetch/conflicts.py" = ["T20"]
+"iemod_fetch/cli.py" = ["T20"]
+# 0o755 on a zipapp is what makes it executable; that is the artifact's job.
+"build.py" = ["T20", "S603", "S607", "S103"]
+# S105 flags the OAuth device-flow ENDPOINT URL as a hardcoded password.
+"iemod_fetch/auth.py" = ["S105"]
+# `random` supplies retry jitter; nothing security-bearing reads it.
+"iemod_fetch/net.py" = ["S311"]
+"tools/*" = ["T20"]
+# The original script is kept verbatim so its defects stay reproducible
+# (ADR-0001). Linting it would mean changing it, which destroys the evidence.
+"legacy/*" = ["ALL"]
+"tests/*" = ["S", "ARG", "PLW", "T20"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.format]
+# `ruff format` is available (`ruff format .`) but NOT enforced in CI, and that
+# is a deliberate choice rather than an oversight. The formatter explodes tables
+# whose grouping carries meaning — `versions._PRERELEASE` lays out the stability
+# ladder in rows, one row per rank, and one-key-per-line destroys the only place
+# that ordering is visible at a glance. A gate that would require making the
+# code less readable is a gate that should not exist.
+#
+# What IS enforced: `ruff check`, mypy, the architecture contracts and the
+# tests. Style is reviewed by people; correctness is reviewed by machines.
+quote-style = "preserve"
+
+
+# -------------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.9"
+files = ["iemod_fetch"]
+# Not `strict = true`: `disallow_untyped_defs` across 26 modules at once is a
+# 130-signature change with no behavioural benefit, and a big mechanical diff
+# hides the real ones. These flags are the subset that catches BUGS rather than
+# missing annotations, and the roadmap tightens the rest module by module.
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "legacy.*"
+ignore_errors = true          # evidence, not code — see ADR-0001
+
+
+# ------------------------------------------------------------------ bandit
+[tool.bandit]
+exclude_dirs = ["tests", "legacy", ".venv"]
+# Justified, per rule, rather than silenced wholesale:
+#   B404/B603/B607 — subprocess is used for 7-Zip, `gh` and `git credential`.
+#                    Every call passes an argv LIST, never a shell string, and
+#                    never interpolates remote input. See archives.py/auth.py.
+#   B311           — `random` supplies retry jitter. Nothing security-bearing
+#                    depends on it; a CSPRNG here would be cargo cult.
+#   B105           — flags an OAuth *endpoint URL* as a hardcoded password.
+skips = ["B404", "B603", "B607", "B311", "B105"]
