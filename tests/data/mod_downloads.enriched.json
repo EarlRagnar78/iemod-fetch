@@ -1,0 +1,914 @@
+{
+  "generated": "2026-09-08T08:34:50.069Z",
+  "description": "Mod download list from Infinity Mod Forge. For GitHub mods, download the latest release. For other mods, visit the URL.",
+  "mods": [
+    {
+      "name": "DLC Merger",
+      "tp2": "DlcMerger",
+      "url": "https://github.com/Argent77/A7-DlcMerger/releases",
+      "github": "Argent77/A7-DlcMerger"
+    },
+    {
+      "name": "EE Fixpack",
+      "tp2": "eefixpack",
+      "url": "https://github.com/gibberlings3/ee_fixpack",
+      "github": "gibberlings3/ee_fixpack",
+      "notes": "mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2026-08-14)"
+    },
+    {
+      "name": "BG1 Unfinished Business",
+      "tp2": "bg1ub",
+      "url": "https://github.com/Pocket-Plane-Group/bg1ub/releases",
+      "github": "Pocket-Plane-Group/bg1ub"
+    },
+    {
+      "name": "T'Was a Slow Boat from Kara-Tur",
+      "tp2": "karatur",
+      "url": "https://github.com/The-Gate-Project/Kara-Tur",
+      "github": "The-Gate-Project/Kara-Tur"
+    },
+    {
+      "name": "Margarita NPC",
+      "tp2": "Margarita",
+      "url": "https://github.com/11jo/Margarita/releases",
+      "github": "11jo/Margarita",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Baldur's Gate: Enhanced Edition Trilogy",
+      "tp2": "EET",
+      "url": "https://github.com/K4thos/EET/releases",
+      "github": "K4thos/EET"
+    },
+    {
+      "name": "EEex",
+      "tp2": "EEex",
+      "url": "https://github.com/Bubb13/EEex/releases",
+      "github": "Bubb13/EEex"
+    },
+    {
+      "name": "Infinity UI",
+      "tp2": "infinity_ui",
+      "url": "https://github.com/Renegade0/InfinityUI",
+      "github": "Renegade0/InfinityUI"
+    },
+    {
+      "name": "EE UI Tweaks",
+      "tp2": "EEUITweaks",
+      "url": "https://github.com/r-e-d/EEUITweaks/releases",
+      "github": "r-e-d/EEUITweaks"
+    },
+    {
+      "name": "Bubb's Spell Menu Extended",
+      "tp2": "bubb_spell_menu_extended",
+      "url": "https://github.com/Bubb13/Bubbs-Spell-Menu-Extended/releases",
+      "github": "Bubb13/Bubbs-Spell-Menu-Extended"
+    },
+    {
+      "name": "Reveal Hidden Gameplay Options",
+      "tp2": "a7-hiddengameplayoptions",
+      "url": "https://github.com/Argent77/A7-HiddenGameplayOptions/releases/",
+      "github": "Argent77/A7-HiddenGameplayOptions"
+    },
+    {
+      "name": "BG:EE Classic Movies",
+      "tp2": "BGEEClassicMovies",
+      "url": "https://github.com/Sampsca/BGEE-Classic-Movies/releases",
+      "github": "Sampsca/BGEE-Classic-Movies"
+    },
+    {
+      "name": "Baldur's Gate Graphics Overhaul",
+      "tp2": "bggo",
+      "url": "https://github.com/Spellhold-Studios/Baldurs-Gate-Graphical-Overhaul",
+      "github": "Spellhold-Studios/Baldurs-Gate-Graphical-Overhaul"
+    },
+    {
+      "name": "Remastered Spell Icons",
+      "tp2": "remastered_spell_icons",
+      "url": "https://github.com/Renegade0/RemasteredSpellIcons",
+      "github": "Renegade0/RemasteredSpellIcons"
+    },
+    {
+      "name": "Endless BG1 Mod",
+      "tp2": "c#endlessbg1",
+      "url": "https://github.com/Gibberlings3/EndlessBG1/releases",
+      "github": "Gibberlings3/EndlessBG1"
+    },
+    {
+      "name": "Another Fine Hell",
+      "tp2": "c#anotherfinehell",
+      "url": "https://github.com/Gibberlings3/Another_Fine_Hell/releases/tag/vAlpha_230919",
+      "github": "Gibberlings3/Another_Fine_Hell",
+      "notes": "mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2023-09-19)"
+    },
+    {
+      "name": "The Boareskyr Bridge Scene",
+      "tp2": "c#sodboabri",
+      "url": "https://github.com/Gibberlings3/The_Boareskyr_Bridge_Scene/releases",
+      "github": "Gibberlings3/The_Boareskyr_Bridge_Scene"
+    },
+    {
+      "name": "The Calling",
+      "tp2": "thecalling",
+      "url": "https://github.com/Gibberlings3/The_Calling/releases",
+      "github": "Gibberlings3/The_Calling"
+    },
+    {
+      "name": "Bonus Pack in Baldur's Gate",
+      "tp2": "bp_in_bg",
+      "url": "https://github.com/UnearthedArcana/BP_in_BG",
+      "github": "UnearthedArcana/BP_in_BG"
+    },
+    {
+      "name": "Reflections of Destiny",
+      "tp2": "Reflections",
+      "url": "https://github.com/subtledoctor/Reflections-of-Destiny",
+      "github": "subtledoctor/Reflections-of-Destiny"
+    },
+    {
+      "name": "Baldur's Gate Mini Quests and Encounters Modification",
+      "tp2": "bgqe",
+      "url": "https://github.com/Gibberlings3/BG_Quests_And_Encounters",
+      "github": "Gibberlings3/BG_Quests_And_Encounters"
+    },
+    {
+      "name": "Ascalon's Questpack",
+      "tp2": "ac_quest",
+      "url": "https://github.com/Gitjas/Ascalons_Questpack/releases",
+      "github": "Gitjas/Ascalons_Questpack"
+    },
+    {
+      "name": "Shades of the Sword Coast",
+      "tp2": "SotSC",
+      "url": "https://downloads.weaselmods.net/download/shades-of-the-sword-coast/",
+      "github": null
+    },
+    {
+      "name": "Brage's Redemption",
+      "tp2": "c#brage",
+      "url": "https://github.com/Gitjas/Brages_Redemption/releases",
+      "github": "Gitjas/Brages_Redemption",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Baldur's Gate Romantic Encounters Modification (BG1RE)",
+      "tp2": "bg1re",
+      "url": "https://github.com/Gibberlings3/BG1_Romantic_Encounters/releases",
+      "github": "Gibberlings3/BG1_Romantic_Encounters",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Balduran's Seatower",
+      "tp2": "bst",
+      "url": "https://github.com/Gibberlings3/BS_Baldurans_Seatower",
+      "github": "Gibberlings3/BS_Baldurans_Seatower",
+      "notes": "mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2023-12-08)"
+    },
+    {
+      "name": "The Lure of the Sirine's Call",
+      "tp2": "SirinesCall",
+      "url": "https://github.com/Pocket-Plane-Group/Lure_Of_Sirines_Call/releases",
+      "github": "Pocket-Plane-Group/Lure_Of_Sirines_Call"
+    },
+    {
+      "name": "Dark Side of the Sword Coast",
+      "tp2": "DSotSC",
+      "url": "https://github.com/Spellhold-Studios/DSotSC",
+      "github": "Spellhold-Studios/DSotSC"
+    },
+    {
+      "name": "Northern Tales of the Sword Coast",
+      "tp2": "ntotsc",
+      "url": "https://github.com/Spellhold-Studios/NTotSC",
+      "github": "Spellhold-Studios/NTotSC"
+    },
+    {
+      "name": "The Darkest Day",
+      "tp2": "TDDz",
+      "url": "https://github.com/Spellhold-Studios/TDDz",
+      "github": "Spellhold-Studios/TDDz",
+      "notes": "mods.json rates this mod 'may cause problems'"
+    },
+    {
+      "name": "Loron's Return",
+      "tp2": "AjocMod",
+      "url": "https://github.com/RoxanneSHS/AjocMod",
+      "github": "RoxanneSHS/AjocMod"
+    },
+    {
+      "name": "Secret of Bonehill",
+      "tp2": "BonehillEET",
+      "url": "https://github.com/RoxanneSHS/BoneHill",
+      "github": "RoxanneSHS/BoneHill"
+    },
+    {
+      "name": "Drow Library",
+      "tp2": "Drowlib",
+      "url": "https://github.com/RoxanneSHS/DrowLibrary",
+      "github": "RoxanneSHS/DrowLibrary",
+      "notes": "mods.json rates this mod 'may cause problems'"
+    },
+    {
+      "name": "Civil Disobedience",
+      "tp2": "disobedience",
+      "url": "https://github.com/RoxanneSHS/CivilDisobedience",
+      "github": "RoxanneSHS/CivilDisobedience",
+      "notes": "mods.json rates this mod 'may cause problems'"
+    },
+    {
+      "name": "Cliffette's Keyring",
+      "tp2": "cliffkey",
+      "url": "https://www.gibberlings3.net/mods/quests/cliffette/",
+      "github": null
+    },
+    {
+      "name": "The Grey Clan Episode One",
+      "tp2": "TGC1E",
+      "url": "https://github.com/K4thos/TGC1e",
+      "github": "K4thos/TGC1e"
+    },
+    {
+      "name": "The Stone of Askavar",
+      "tp2": "soa",
+      "url": "https://github.com/red-carnelian/The-Stone-of-Askavar",
+      "github": "red-carnelian/The-Stone-of-Askavar"
+    },
+    {
+      "name": "Blood and Faith",
+      "tp2": "BLOODFAITH",
+      "url": "https://github.com/Glittergear/BloodAndFaith",
+      "github": "Glittergear/BloodAndFaith"
+    },
+    {
+      "name": "A Party to Die For",
+      "tp2": "PartyToDieFor",
+      "url": "https://github.com/Glittergear/PartyToDieFor/",
+      "github": "Glittergear/PartyToDieFor"
+    },
+    {
+      "name": "Jarl's Adventure Pack",
+      "tp2": "JA#BGT_AdvPack",
+      "url": "https://github.com/Gitjas/JA-AdventurePack/",
+      "github": "Gitjas/JA-AdventurePack"
+    },
+    {
+      "name": "Unfinished Business",
+      "tp2": "ub",
+      "url": "https://github.com/Pocket-Plane-Group/UnfinishedBusiness/releases",
+      "github": "Pocket-Plane-Group/UnfinishedBusiness"
+    },
+    {
+      "name": "Almateria's Restoration Project",
+      "tp2": "arestorationp",
+      "url": "https://github.com/SpellholdStudios/Almaterias_Restoration_Project/releases/tag/v10.0",
+      "github": "SpellholdStudios/Almaterias_Restoration_Project"
+    },
+    {
+      "name": "Quest Pack",
+      "tp2": "d0questpack",
+      "url": "https://github.com/Pocket-Plane-Group/QuestPack/releases",
+      "github": "Pocket-Plane-Group/QuestPack",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Hidden Adventures",
+      "tp2": "hiddenadventure",
+      "url": "https://github.com/Gitjas/hiddenadventure/releases",
+      "github": "Gitjas/hiddenadventure"
+    },
+    {
+      "name": "Adalon's Blood",
+      "tp2": "c#sb_silber",
+      "url": "https://github.com/Gitjas/Adalons_Blood/releases/tag/15",
+      "github": "Gitjas/Adalons_Blood"
+    },
+    {
+      "name": "Expanded Thief Stronghold",
+      "tp2": "gbthfkp",
+      "url": "https://github.com/SpellholdStudios/Expanded_Thief_Stronghold/releases",
+      "github": "SpellholdStudios/Expanded_Thief_Stronghold"
+    },
+    {
+      "name": "Every Mod and Dog",
+      "tp2": "emad",
+      "url": "https://www.gibberlings3.net/files/file/707-every-mod-and-dog/",
+      "github": null
+    },
+    {
+      "name": "CoM Encounters",
+      "tp2": "com_encounters",
+      "url": "https://github.com/The-Gate-Project/Com_encounters/blob/main/Readme.md",
+      "github": "The-Gate-Project/Com_encounters"
+    },
+    {
+      "name": "Fishing for Trouble",
+      "tp2": "FishingForTrouble",
+      "url": "https://github.com/Spellhold-Studios/FishingForTrouble/releases",
+      "github": "Spellhold-Studios/FishingForTrouble"
+    },
+    {
+      "name": "Tower of Deception",
+      "tp2": "tod",
+      "url": "https://github.com/InfinityMods/TowerOfDeception/releases",
+      "github": "InfinityMods/TowerOfDeception"
+    },
+    {
+      "name": "Test Your Mettle!",
+      "tp2": "A7-TestYourMettle",
+      "url": "https://github.com/Argent77/A7-TestYourMettle/releases",
+      "github": "Argent77/A7-TestYourMettle"
+    },
+    {
+      "name": "Assassinations",
+      "tp2": "Assassinations",
+      "url": "https://github.com/Pocket-Plane-Group/Assassinations/releases/tag/v19",
+      "github": "Pocket-Plane-Group/Assassinations"
+    },
+    {
+      "name": "Derat's Ogre",
+      "tp2": "Derats_Ogre",
+      "url": "https://github.com/Deratiseur/Ogre",
+      "github": "Deratiseur/Ogre"
+    },
+    {
+      "name": "Colours of Infinity: Tales of the Deep Gardens",
+      "tp2": "TotDG",
+      "url": "https://downloads.weaselmods.net/download/tales-of-the-deep-gardens/",
+      "github": null
+    },
+    {
+      "name": "Colours of Infinity: Innershade",
+      "tp2": "Innershade",
+      "url": "https://downloads.weaselmods.net/download/innershade/",
+      "github": null
+    },
+    {
+      "name": "Colours of Infinity: The White Queen",
+      "tp2": "WhiteQueen",
+      "url": "https://downloads.weaselmods.net/download/the-white-queen/",
+      "github": null
+    },
+    {
+      "name": "Colours of Infinity: I Shall Never Forget",
+      "tp2": "l#isnf",
+      "url": "https://downloads.weaselmods.net/download/i-shall-never-forget/",
+      "github": null
+    },
+    {
+      "name": "Eilistraee's Song",
+      "tp2": "Eilistraee",
+      "url": "https://downloads.weaselmods.net/download/eilistraees-song/",
+      "github": null
+    },
+    {
+      "name": "Athkatlan Grounds: Southern Edge",
+      "tp2": "SouthernEdge",
+      "url": "https://downloads.weaselmods.net/download/southern-edge/",
+      "github": null
+    },
+    {
+      "name": "Athkatlan Grounds: The Ooze's Lounge",
+      "tp2": "ooze",
+      "url": "https://downloads.weaselmods.net/download/oozes-lounge/",
+      "github": null
+    },
+    {
+      "name": "Athkatlan Grounds: The Tangled Oak Isle",
+      "tp2": "TangledIsle",
+      "url": "https://downloads.weaselmods.net/download/tangled-oak-isle/",
+      "github": null
+    },
+    {
+      "name": "Athkatlan Grounds: Bridge's Block",
+      "tp2": "BridgesBlock",
+      "url": "https://downloads.weaselmods.net/download/bridges-block/",
+      "github": null
+    },
+    {
+      "name": "Athkatlan Grounds: Alabaster Sands",
+      "tp2": "AlabasterSands",
+      "url": "https://downloads.weaselmods.net/download/alabaster-sands/",
+      "github": null
+    },
+    {
+      "name": "The Journey to the Whin Hill",
+      "tp2": "WhinHill",
+      "url": "https://downloads.weaselmods.net/download/the-journey-to-the-whin-hill/",
+      "github": null
+    },
+    {
+      "name": "The Dreadful Tales: The Bloodied Stings of Barovia",
+      "tp2": "BloodiedStingsOfBarovia",
+      "url": "https://downloads.weaselmods.net/download/the-bloodied-stings-of-barovia/",
+      "github": null
+    },
+    {
+      "name": "Tidings",
+      "tp2": "Tidings",
+      "url": "https://github.com/AciferBG/Dark-Tidings/releases",
+      "github": "AciferBG/Dark-Tidings",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Call of the Lost Goddess",
+      "tp2": "Godcall",
+      "url": "https://github.com/AciferBG/Call-of-the-Lost-Goddess/releases",
+      "github": "AciferBG/Call-of-the-Lost-Goddess",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Fowl Wish",
+      "tp2": "FowlWish",
+      "url": "https://github.com/Glittergear/A-Fowl-Wish/releases",
+      "github": "Glittergear/A-Fowl-Wish"
+    },
+    {
+      "name": "Gone Nuts",
+      "tp2": "GoneNuts",
+      "url": "https://github.com/Glittergear/GoneNuts",
+      "github": "Glittergear/GoneNuts"
+    },
+    {
+      "name": "Dead Gardens",
+      "tp2": "DeadGardens",
+      "url": "https://github.com/Glittergear/DeadGardens",
+      "github": "Glittergear/DeadGardens"
+    },
+    {
+      "name": "Gibberlings Three Anniversary Mod",
+      "tp2": "g3anniversary",
+      "url": "https://github.com/Gibberlings3/g3anniversary/releases",
+      "github": "Gibberlings3/g3anniversary",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Heroes Thieves and Moneylenders",
+      "tp2": "HerThiMoney",
+      "url": "https://github.com/Austin-BG/HTaM/releases",
+      "github": "Austin-BG/HTaM",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Imnesvale",
+      "tp2": "imnesvale",
+      "url": "https://github.com/Spellhold-Studios/Duality_Odd_Quest_Mod",
+      "github": "Spellhold-Studios/Duality_Odd_Quest_Mod"
+    },
+    {
+      "name": "Region of Terror",
+      "tp2": "RoT",
+      "url": "https://github.com/Spellhold-Studios/Region-of-Terror",
+      "github": "Spellhold-Studios/Region-of-Terror"
+    },
+    {
+      "name": "Shards of Ice",
+      "tp2": "shardsofice",
+      "url": "https://github.com/Gibberlings3/Shards_of_Ice",
+      "github": "Gibberlings3/Shards_of_Ice"
+    },
+    {
+      "name": "Throne of the Mad God",
+      "tp2": "ThroneoftheMadGod",
+      "url": "https://github.com/AciferBG/Throne-of-the-Mad-God",
+      "github": "AciferBG/Throne-of-the-Mad-God"
+    },
+    {
+      "name": "Expanded Mage Stronghold",
+      "tp2": "magestronghold_eet",
+      "url": "https://github.com/RoxanneSHS/Magestronghold",
+      "github": "RoxanneSHS/Magestronghold"
+    },
+    {
+      "name": "Azengaard Encounter",
+      "tp2": "Azengaard",
+      "url": "https://github.com/RoxanneSHS/AzengaardEE",
+      "github": "RoxanneSHS/AzengaardEE"
+    },
+    {
+      "name": "Tales of Anegh",
+      "tp2": "toa",
+      "url": "https://github.com/Gitjas/ToA",
+      "github": "Gitjas/ToA"
+    },
+    {
+      "name": "Improved Asylum",
+      "tp2": "impasylum",
+      "url": "https://github.com/RoxanneSHS/Asylum",
+      "github": "RoxanneSHS/Asylum"
+    },
+    {
+      "name": "Shadows Over Soubar",
+      "tp2": "SoS",
+      "url": "https://github.com/RoxanneSHS/SoS-EE",
+      "github": "RoxanneSHS/SoS-EE"
+    },
+    {
+      "name": "Tortured Souls Lite",
+      "tp2": "TorturedSoulsLite",
+      "url": "https://github.com/Black-Wyrm-Lair/TorturedSoulsLite",
+      "github": "Black-Wyrm-Lair/TorturedSoulsLite",
+      "notes": "mods.json rates this mod 'may cause problems' | mods.json status: archived (last updated 2022-03-15)"
+    },
+    {
+      "name": "Autumn's Twilight",
+      "tp2": "Autumns_Twilight",
+      "url": "https://github.com/evancauteren/bg2-autumns-twilight-mod",
+      "github": "evancauteren/bg2-autumns-twilight-mod"
+    },
+    {
+      "name": "Vampire World",
+      "tp2": "Vampire_World",
+      "url": "https://github.com/Spellhold-Studios/Miscellaneous/releases",
+      "github": "Spellhold-Studios/Miscellaneous",
+      "notes": "github from mods.json | mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2017-10-18)"
+    },
+    {
+      "name": "Detective Guild of Athkatla",
+      "tp2": "SearchGuild",
+      "url": "https://github.com/Austin-BG/SearchGuild",
+      "github": "Austin-BG/SearchGuild"
+    },
+    {
+      "name": "Domains of Dread",
+      "tp2": "DofD",
+      "url": "https://github.com/The-Gate-Project/Domains-of-Dread/",
+      "github": "The-Gate-Project/Domains-of-Dread"
+    },
+    {
+      "name": "Paladins of Faerun Quest Pack",
+      "tp2": "Paladins-of-Faerun",
+      "url": "https://github.com/11jo/Paladins-of-Faerun-Quest-Pack",
+      "github": "11jo/Paladins-of-Faerun-Quest-Pack"
+    },
+    {
+      "name": "Planar Sphere Mod",
+      "tp2": "planarspheremod",
+      "url": "https://github.com/11jo/PlanarSphere",
+      "github": "11jo/PlanarSphere"
+    },
+    {
+      "name": "Twisting With The Rune",
+      "tp2": "TheRune",
+      "url": "https://github.com/RoxanneSHS/The-Rune",
+      "github": "RoxanneSHS/The-Rune"
+    },
+    {
+      "name": "Pursuit of Justice",
+      "tp2": "TPoJ",
+      "url": "https://github.com/bucketfulofsunshine/TPoJ",
+      "github": "bucketfulofsunshine/TPoJ"
+    },
+    {
+      "name": "Jerry Zinger Show",
+      "tp2": "jz",
+      "url": "https://github.com/Spellhold-Studios/Jerry-Zinger-Show",
+      "github": "Spellhold-Studios/Jerry-Zinger-Show"
+    },
+    {
+      "name": "Ascension",
+      "tp2": "Ascension",
+      "url": "https://github.com/InfinityMods/Ascension/releases",
+      "github": "InfinityMods/Ascension"
+    },
+    {
+      "name": "Fight the Heavens",
+      "tp2": "fight-the-heavens",
+      "url": "https://github.com/morpheus562/fight-the-heavens",
+      "github": "morpheus562/fight-the-heavens"
+    },
+    {
+      "name": "The Dreadful Tales: In Love, Undeath",
+      "tp2": "InLoveUndeath",
+      "url": "https://downloads.weaselmods.net/download/in-love-undeath/",
+      "github": null
+    },
+    {
+      "name": "The Dreadful Tales: Juniper and the Stone Leech",
+      "tp2": "l#juniperstone",
+      "url": "https://downloads.weaselmods.net/download/juniper-and-the-stone-leech/",
+      "github": null
+    },
+    {
+      "name": "Shar-Teel SoD",
+      "tp2": "k9SharteelNPC",
+      "url": "https://github.com/panshaigan/Shar-Teel-SoD",
+      "github": "panshaigan/Shar-Teel-SoD",
+      "notes": "mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2026-08-23)"
+    },
+    {
+      "name": "Aura NPC",
+      "tp2": "Aura_BG1_2_EET",
+      "url": "https://github.com/TheArtisanBG/Aura_BG1_BG2_EET/",
+      "github": "TheArtisanBG/Aura_BG1_BG2_EET"
+    },
+    {
+      "name": "Bristlelick BG1EE NPC",
+      "tp2": "Bristlelick",
+      "url": "https://downloads.weaselmods.net/download/bristlelick/",
+      "github": null
+    },
+    {
+      "name": "Solaufein's Rescue",
+      "tp2": "jasteys_solaufein",
+      "url": "https://www.baldurs-gate.de/index.php?resources/jasteys-solaufein-npc-mod-for-bgii-solaufeins-rescue.13/",
+      "github": null
+    },
+    {
+      "name": "Vampire Tales",
+      "tp2": "VampireTales",
+      "url": "https://github.com/The-Gate-Project/VampireTales",
+      "github": "The-Gate-Project/VampireTales"
+    },
+    {
+      "name": "Arath NPC",
+      "tp2": "arath",
+      "url": "https://github.com/SpellholdStudios/Arath_NPC/releases",
+      "github": "SpellholdStudios/Arath_NPC"
+    },
+    {
+      "name": "Saradas Magic",
+      "tp2": "saradas_magic",
+      "url": "https://github.com/The-Gate-Project/Saradas_Magic_for_BGEE",
+      "github": "The-Gate-Project/Saradas_Magic_for_BGEE"
+    },
+    {
+      "name": "Sirene NPC",
+      "tp2": "Sirene_BG2",
+      "url": "https://github.com/ArtemiusI/Sirene-NPC-for-BG2-EE",
+      "github": "ArtemiusI/Sirene-NPC-for-BG2-EE"
+    },
+    {
+      "name": "Colours of Infinity: Foundling",
+      "tp2": "Foundling",
+      "url": "https://downloads.weaselmods.net/download/foundling-between-the-shades/",
+      "github": null
+    },
+    {
+      "name": "Colours of Infinity: Yvette Romance",
+      "tp2": "l#coi-yvette",
+      "url": "https://downloads.weaselmods.net/download/yvette-romance/",
+      "github": null
+    },
+    {
+      "name": "Fyalvara BG2EE NPC",
+      "tp2": "fyalvara",
+      "url": "https://downloads.weaselmods.net/download/fyalvara/",
+      "github": null
+    },
+    {
+      "name": "Gahesh",
+      "tp2": "Gahesh",
+      "url": "https://downloads.weaselmods.net/download/gahesh/",
+      "github": null
+    },
+    {
+      "name": "Verr'Sza",
+      "tp2": "l#verrszabg2",
+      "url": "https://downloads.weaselmods.net/download/verrsza-bg2ee/",
+      "github": null
+    },
+    {
+      "name": "Kivan of Shilmista",
+      "tp2": "kivan",
+      "url": "https://github.com/Gibberlings3/Kivan_and_Deheriana",
+      "github": "Gibberlings3/Kivan_and_Deheriana"
+    },
+    {
+      "name": "Finch NPC",
+      "tp2": "finchnpc",
+      "url": "https://github.com/RoxanneSHS/Finch",
+      "github": "RoxanneSHS/Finch"
+    },
+    {
+      "name": "Gavin NPC",
+      "tp2": "gavin_bg2",
+      "url": "https://github.com/Gibberlings3/Gavin_BG2",
+      "github": "Gibberlings3/Gavin_BG2"
+    },
+    {
+      "name": "Haer'Dalis Romance",
+      "tp2": "haerdalisromance",
+      "url": "https://github.com/Spellhold-Studios/HaerDalis-Romance/releases",
+      "github": "Spellhold-Studios/HaerDalis-Romance",
+      "notes": "https scheme unverified; if resolution fails, download manually from the SHS file page | github from mods.json | mods.json rates this mod 'may cause problems'"
+    },
+    {
+      "name": "Edwin Romance",
+      "tp2": "edwinromance",
+      "url": "https://github.com/SpellholdStudios/Edwin_Romance/releases",
+      "github": "SpellholdStudios/Edwin_Romance"
+    },
+    {
+      "name": "Road to Discovery",
+      "tp2": "sodrtd",
+      "url": "https://github.com/Gibberlings3/Road_To_Discovery_for_SoD/releases",
+      "github": "Gibberlings3/Road_To_Discovery_for_SoD"
+    },
+    {
+      "name": "BG2 Romance Expanded",
+      "tp2": "OWRomanceExpanded",
+      "url": "https://www.gibberlings3.net/forums/topic/37854-v106-viconia-romance-expanded-",
+      "github": null
+    },
+    {
+      "name": "Mazzy Romance",
+      "tp2": "Artisans_MazzyRom",
+      "url": "https://github.com/TheArtisanBG/Mazzy-Romance-BG2EE/releases",
+      "github": "TheArtisanBG/Mazzy-Romance-BG2EE",
+      "notes": "github from mods.json | mods.json rates this mod 'may cause problems' | mods.json status: beta (last updated 2026-04-23)"
+    },
+    {
+      "name": "Love Conquers All (LCA)",
+      "tp2": "LCA",
+      "url": "https://github.com/LCA-EET/LCA/releases",
+      "github": "LCA-EET/LCA"
+    },
+    {
+      "name": "Jini Romance",
+      "tp2": "Jini",
+      "url": "https://github.com/Black-Wyrm-Lair/Jini-Romance",
+      "github": "Black-Wyrm-Lair/Jini-Romance"
+    },
+    {
+      "name": "Rjali NPC",
+      "tp2": "Rjali",
+      "url": "https://github.com/Black-Wyrm-Lair/Rjali-Romance",
+      "github": "Black-Wyrm-Lair/Rjali-Romance"
+    },
+    {
+      "name": "Crossmod Banter Pack",
+      "tp2": "crossmodbg2",
+      "url": "https://github.com/Gibberlings3/Crossmod_Banter_Pack_for_Baldurs_Gate_II",
+      "github": "Gibberlings3/Crossmod_Banter_Pack_for_Baldurs_Gate_II"
+    },
+    {
+      "name": "Thalantyr Item Upgrade",
+      "tp2": "thalan",
+      "url": "https://github.com/CrevsDaak/thalan/releases",
+      "github": "CrevsDaak/thalan"
+    },
+    {
+      "name": "Under-Represented Items",
+      "tp2": "underrep",
+      "url": "https://github.com/Pocket-Plane-Group/Under-Respresented_Items/releases",
+      "github": "Pocket-Plane-Group/Under-Respresented_Items"
+    },
+    {
+      "name": "Bolsa Merchant",
+      "tp2": "bolsa",
+      "url": "https://github.com/Spellhold-Studios/Bolsa",
+      "github": "Spellhold-Studios/Bolsa"
+    },
+    {
+      "name": "Darron the Vendor",
+      "tp2": "darron",
+      "url": "https://github.com/Spellhold-Studios/Darron",
+      "github": "Spellhold-Studios/Darron"
+    },
+    {
+      "name": "Heart of the Wood",
+      "tp2": "heartwood",
+      "url": "https://github.com/Spellhold-Studios/HeartOfTheWood",
+      "github": "Spellhold-Studios/HeartOfTheWood"
+    },
+    {
+      "name": "Ruad Ro'fhessa",
+      "tp2": "ruad",
+      "url": "https://github.com/Spellhold-Studios/Ruad-Rofhessa-Item-Upgrade",
+      "github": "Spellhold-Studios/Ruad-Rofhessa-Item-Upgrade"
+    },
+    {
+      "name": "Golem Construction for Spellcasters",
+      "tp2": "A7-GolemConstruction",
+      "url": "https://github.com/Argent77/A7-GolemConstruction/releases/tag/v6.1",
+      "github": "Argent77/A7-GolemConstruction"
+    },
+    {
+      "name": "Sword and Fist",
+      "tp2": "sword_and_fist",
+      "url": "https://github.com/Gibberlings3/sword_and_fist/releases",
+      "github": "Gibberlings3/sword_and_fist",
+      "notes": "github from mods.json"
+    },
+    {
+      "name": "Improved Archer Kit",
+      "tp2": "A7#ImprovedArcher",
+      "url": "https://github.com/Argent77/A7-ImprovedArcher/releases",
+      "github": "Argent77/A7-ImprovedArcher"
+    },
+    {
+      "name": "Morpheus562's Kitpack",
+      "tp2": "morpheus562-s-kitpack",
+      "url": "https://www.morpheus-mart.com/morpheus562s-kitpack",
+      "github": null
+    },
+    {
+      "name": "The Artisan's Kitpack",
+      "tp2": "ArtisansKitpack",
+      "url": "https://github.com/ArtemiusI/The-Artisan-s-Kitpack",
+      "github": "ArtemiusI/The-Artisan-s-Kitpack"
+    },
+    {
+      "name": "Artisans Kitpack NPC",
+      "tp2": "ArtisansKitpack_npc",
+      "url": "https://github.com/ArtemiusI/The-Artisan-s-Kitpack",
+      "github": "ArtemiusI/The-Artisan-s-Kitpack"
+    },
+    {
+      "name": "I Hate Undead",
+      "tp2": "IHateUndead",
+      "url": "https://github.com/Raduziel/I-Hate-Undead-Kitpack/releases",
+      "github": "Raduziel/I-Hate-Undead-Kitpack"
+    },
+    {
+      "name": "Tome and Blood",
+      "tp2": "TomeAndBlood",
+      "url": "https://github.com/UnearthedArcana/TomeAndBlood",
+      "github": "UnearthedArcana/TomeAndBlood"
+    },
+    {
+      "name": "Might & Guile",
+      "tp2": "might_and_guile",
+      "url": "https://github.com/UnearthedArcana/Might_and_Guile",
+      "github": "UnearthedArcana/Might_and_Guile"
+    },
+    {
+      "name": "Song and Silence",
+      "tp2": "song_and_silence",
+      "url": "https://github.com/Gibberlings3/SongAndSilence",
+      "github": "Gibberlings3/SongAndSilence"
+    },
+    {
+      "name": "Deities of Faerun",
+      "tp2": "DeitiesOfFaerun",
+      "url": "https://github.com/Raduziel/Deities-Of-Faerun",
+      "github": "Raduziel/Deities-Of-Faerun"
+    },
+    {
+      "name": "Improved Shamanic Dance",
+      "tp2": "A7#ImprovedShamanicDance",
+      "url": "https://github.com/Argent77/A7-ImprovedShamanicDance/releases",
+      "github": "Argent77/A7-ImprovedShamanicDance"
+    },
+    {
+      "name": "The Tweaks Anthology",
+      "tp2": "cdtweaks",
+      "url": "https://github.com/Gibberlings3/Tweaks-Anthology/releases",
+      "github": "Gibberlings3/Tweaks-Anthology"
+    },
+    {
+      "name": "Lore From Learning",
+      "tp2": "cdlore",
+      "url": "https://github.com/Gibberlings3/Lore_From_Learning",
+      "github": "Gibberlings3/Lore_From_Learning"
+    },
+    {
+      "name": "Sword Coast Stratagems",
+      "tp2": "stratagems",
+      "url": "https://github.com/Gibberlings3/SwordCoastStratagems/releases",
+      "github": "Gibberlings3/SwordCoastStratagems"
+    },
+    {
+      "name": "Neverwinter Nights for Baldur's Gate",
+      "tp2": "NWNForBG",
+      "url": "https://github.com/abalabokhin/NWNForBG",
+      "github": "abalabokhin/NWNForBG"
+    },
+    {
+      "name": "The Picture Standard",
+      "tp2": "thepicturestandard",
+      "url": "https://github.com/MattyGroove/ThePictureStandard",
+      "github": "MattyGroove/ThePictureStandard"
+    },
+    {
+      "name": "Infinity Collection Portrait Pack",
+      "tp2": "cd_icpp",
+      "url": "https://github.com/Gibberlings3/Infinity_Collection_Portrait_Pack",
+      "github": "Gibberlings3/Infinity_Collection_Portrait_Pack"
+    },
+    {
+      "name": "Hannah's Portrait Pack",
+      "tp2": "hannah_portraits",
+      "url": "https://github.com/Gibberlings3/Hannahs_Portrait_Pack",
+      "github": "Gibberlings3/Hannahs_Portrait_Pack"
+    },
+    {
+      "name": "Plasmocat's Picks of the Litter",
+      "tp2": "picks_of_the_litter",
+      "url": "https://github.com/Gibberlings3/Plasmocats_Picks_of_the_Litter_Portrait_Pack",
+      "github": "Gibberlings3/Plasmocats_Picks_of_the_Litter_Portrait_Pack"
+    },
+    {
+      "name": "Worldmap",
+      "tp2": "bp-bgt-worldmap",
+      "url": "https://github.com/SpellholdStudios/BP-BGT-Worldmap",
+      "github": "SpellholdStudios/BP-BGT-Worldmap"
+    },
+    {
+      "name": "Enhanced Edition Trilogy (End)",
+      "tp2": "EET_end",
+      "url": "https://github.com/K4thos/EET/releases",
+      "github": "K4thos/EET"
+    }
+  ]
+}

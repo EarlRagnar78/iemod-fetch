@@ -1,0 +1,12 @@
+{
+  "_comment": "WeiDU folder -> mod_downloads.json 'tp2' key, for the 9 mods whose catalogue name differs from their install folder. Derived from your WeiDU.log + mod_downloads.json and verified by tests/test_plan.py. Review before use: these are name matches, not content matches.",
+  "HiddenGameplayOptions": "a7-hiddengameplayoptions",
+  "BloodAndFaith": "BLOODFAITH",
+  "questpack": "d0questpack",
+  "ISNF": "l#isnf",
+  "JuniperAndTheStoneLeech": "l#juniperstone",
+  "c#solaufein": "jasteys_solaufein",
+  "Yvette": "l#coi-yvette",
+  "VerrBG2": "l#verrszabg2",
+  "Romance_Expanded": "OWRomanceExpanded"
+}

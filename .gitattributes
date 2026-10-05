@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Fixtures of real operator files. Line endings are part of the evidence.
+tests/data/*.log -text
+tests/data/*.json -text
+
+# Kept verbatim so its defects stay reproducible (ADR-0001).
+legacy/** linguist-vendored
+
+*.pyz binary

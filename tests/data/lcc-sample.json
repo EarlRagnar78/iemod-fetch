@@ -1,0 +1,784 @@
+{
+ "_attribution": "Sample extracted from https://github.com/RiwsPy/lcc-docs db/mods.json (MIT, (c) 2025 RiwsPy) as a test fixture.",
+ "mods": [
+  {
+   "id": 100,
+   "name": "Baldur's Gate Romantic Encounters Modification",
+   "description": "Si vous êtes peu satisfait par les interactions disponibles dans BG1, ce mod devrait vous combler. C'est le pendant de son homonyme [[1289]].|Il ajoute de nombreuses possibilités de romance passagère ou plus intense avec des personnages non recrutables du jeu, aussi bien pour les hommes que pour les femmes, avec parfois des mini-quêtes à la clé. Attention : une partie de ce mod est à contenu \"adulte\".",
+   "urls": [
+    "https://www.gibberlings3.net/mods/npcs/bg-romantic-encounters/",
+    "https://baldurs-gate.de/index.php?threads/43473/",
+    "https://github.com/Gibberlings3/BG1_Romantic_Encounters"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BG",
+    "Tutu",
+    "BGT",
+    "BGEE",
+    "SoD",
+    "EET"
+   ],
+   "authors": [
+    "jastey",
+    "berelinde",
+    "Kulyok",
+    "Lava Del'Vortel",
+    "Thimblerig",
+    "Twani"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "fr",
+    "de",
+    "it",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-07-24",
+   "compatibilities": {
+    "conflicts": [
+     261
+    ]
+   },
+   "tp2": "bg1re"
+  },
+  {
+   "id": 112,
+   "name": "BG1 Unfinished Business",
+   "description": "À l'instar du mod du même nom pour Baldur's Gate II, ce mod vient combler un certain nombre d'oublis ou d'éléments inachevés dans le jeu d'origine. Il réintroduit donc dans le jeu un certain nombre de quêtes, d'objets, de personnages... qui figuraient dans le jeu, mais n'étaient pas exploités ou inachevés (en particulier des réactions des personnages recrutables). Vous trouverez notamment le deuxième niveau de l'île des Glaces de BG1, faire que Branwen reconnaisse Tranzig, donner un usage à la potion mystérieuse trouvée dans les mines, etc. Il corrige également certains bugs.",
+   "urls": [
+    "https://www.pocketplane.net/bg1-unfinished-business/",
+    "https://forums.beamdog.com/discussion/38254/",
+    "https://www.gibberlings3.net/forums/topic/29374-bg1-unfinished-business-bug-reporting-thread/",
+    "https://github.com/Pocket-Plane-Group/bg1ub"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BG",
+    "Tutu",
+    "BGT",
+    "BGEE",
+    "SoD"
+   ],
+   "authors": [
+    "Icelus",
+    "SimDing0",
+    "Ascension64",
+    "SixOfSpades",
+    "devSin",
+    "Idobek",
+    "CamDawg",
+    "Dudley"
+   ],
+   "team": [],
+   "notes": [
+    "Il doit être installé avant [[372]]."
+   ],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "it",
+    "pl",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2025-08-25",
+   "compatibilities": {},
+   "tp2": "bg1ub"
+  },
+  {
+   "id": 152,
+   "name": "BS Balduran's Seatower",
+   "description": "Ce mod est le fruit d'une collaboration entre de nombreux moddeurs. Il ajoute un nouveau quartier à La Porte de Baldur, avec de nombreuses quêtes qui vous obligeront à arpenter la Côte des Épées.",
+   "urls": [
+    "https://www.gibberlings3.net/mods/quests/baldurans-seatower/",
+    "https://forums.beamdog.com/discussion/77570/",
+    "https://github.com/Gibberlings3/BS_Baldurans_Seatower"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BGT",
+    "BGEE",
+    "EET"
+   ],
+   "authors": [
+    "Multiple"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 1,
+   "languages": [
+    "en"
+   ],
+   "status": [
+    "beta"
+   ],
+   "last_update": "2023-12-08",
+   "compatibilities": {},
+   "tp2": "bst"
+  },
+  {
+   "id": 426,
+   "name": "The Gibberlings Three Anniversary Mod",
+   "description": "Publié à l'occasion de la célébration de l'anniversaire du site, ce mini mod est le fruit de la collaboration de plusieurs moddeurs de G3. Il ajoute une quête mi-sérieuse, mi-amusante qui débute avec la rencontre d'un certain Drini à la Couronne de Cuivre. Prêts à vous lancer dans une tournée des pubs ?",
+   "urls": [
+    "https://www.gibberlings3.net/mods/quests/g3a",
+    "https://github.com/Gibberlings3/g3anniversary"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BG2",
+    "BGT",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Gibberlings3"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "ru",
+    "pl"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-04-24",
+   "compatibilities": {},
+   "tp2": "g3anniversary"
+  },
+  {
+   "id": 462,
+   "name": "Haer'Dalis Romance",
+   "description": "Ce mod permettra aux PJ de tout poil (quelle que soit leur race, leur classe ou leur alignement) de romancer le tieffelin, ou tout du moins d'essayer. Une vingtaine de lovetalks, des discussions surprises, des dialogues à l'initiative du PJ, conflit de romance avec Anomen... Le mod dispose de contenu pour SoA et ToB.",
+   "urls": [
+    "https://www.shsforums.net/forum/604-haerdalis-romance/",
+    "https://github.com/Spellhold-Studios/HaerDalis-Romance/"
+   ],
+   "categories": [
+    "PNJ (autre)"
+   ],
+   "games": [
+    "BG2",
+    "BGT",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Aeryn"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 1,
+   "languages": [
+    "en"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2025-09-18",
+   "compatibilities": {},
+   "tp2": "haerdalisromance"
+  },
+  {
+   "id": 503,
+   "name": "I Shall Never Forget",
+   "description": "ISNF est un mod de quête de la série Colours of Infinity. Ce mod vous donne la possibilité d'aider Orion, un mage d'Athkatla, Orion, qui a sombré dans le désespoir après la mort de sa femme. A vous de voir si vous l'aiderez jusqu'au bout ou l'abandonnerez en route... Ce mod est aussi un moyen alternatif de réunir la somme pour Gaelan Bayle. La quête commence dans le quartier du Gouvernement.",
+   "urls": [
+    "https://www.weaselmods.net/forumdisplay.php?fid=6",
+    "https://forums.beamdog.com/discussion/64867/",
+    "https://downloads.weaselmods.net/download/i-shall-never-forget/"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BG2",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Lava Del'Vortel"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "pl",
+    "fr",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-06-14",
+   "compatibilities": {},
+   "tp2": "isnf"
+  },
+  {
+   "id": 532,
+   "name": "Improved Asylum",
+   "description": "Ce mod modifie le donjon de Spellhold pour le rendre plus amusant, plus difficile et stimulant pour les joueurs confirmés. Il comprend trois composants qui peuvent être installés ensemble ou séparément.",
+   "urls": [
+    "https://github.com/Spellhold-Studios/Improved-Asylum"
+   ],
+   "categories": [
+    "Script et tactique"
+   ],
+   "games": [
+    "BG2",
+    "BGT"
+   ],
+   "authors": [
+    "Rastor"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "fr",
+    "de",
+    "ru"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2024-12-15",
+   "compatibilities": {},
+   "tp2": "impasylum"
+  },
+  {
+   "id": 678,
+   "name": "Margarita Zelleod",
+   "description": "Ce mod ajoute une nouvelle traqueuse halfelin qui voyage sur la Côte des Épées, bien qu'il soit évident qu'elle n'est pas de la région. Elle aime se faire passer pour une personne inutile, timide ou innocente, même si ce n'est pas tout à fait le cas. Vous pourrez la recruter dans les mines de Nashkel.|FOR 15, DEX 17, CON 15, INT 12, SAG 14, CHA 15.",
+   "urls": [
+    "https://forums.beamdog.com/discussion/15867/",
+    "https://github.com/11jo/Margarita/"
+   ],
+   "categories": [
+    "PNJ recrutable"
+   ],
+   "games": [
+    "BG",
+    "BGT",
+    "BGEE",
+    "EET"
+   ],
+   "authors": [
+    "Xavioria"
+   ],
+   "team": [],
+   "notes": [
+    "Il doit être installé avant [[372]].",
+    "Choisissez la version github qui est compatible EET."
+   ],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-05-19",
+   "compatibilities": {},
+   "tp2": "Margarita"
+  },
+  {
+   "id": 845,
+   "name": "Ding0's Quest Pack",
+   "description": "Ce mod ajoute une multitude de petites quêtes, mais modifie également l'IA de certains monstres, leur rajoutant également certaines capacités (par exemple, les momies peuvent désormais lancer une sorte de souffle étourdissant sur vous... gnark). Vous aurez également la possibilité d'effectuer d'autres choix lors de quêtes déjà existantes, comme trahir Edwin, voire Renal Bloodscalp lui-même... à vos risques et périls.",
+   "urls": [
+    "https://www.pocketplane.net/quest-pack/",
+    "https://github.com/Pocket-Plane-Group/QuestPack/"
+   ],
+   "categories": [
+    "Quête",
+    "Script et tactique"
+   ],
+   "games": [
+    "BG2",
+    "BGT",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "SimDing0",
+    "Wisp"
+   ],
+   "team": [],
+   "notes": [
+    "Attention : le composant `Nouveau destin pour les glands des Dryades` empêche d'accéder au donjon de Firkraag tant que la quête n'est pas résolue."
+   ],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "es",
+    "de",
+    "fr",
+    "it",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-04-25",
+   "compatibilities": {},
+   "tp2": "d0questpack"
+  },
+  {
+   "id": 1013,
+   "name": "Sword and Fist",
+   "description": "À l'origine devant faire partie d'un projet plus vaste, \"Lands of Intrigue\", ce mod propose une révision de la classe de moine afin de la rapprocher de sa version papier de AD&D 3ème du nom, mais rajoute aussi des kits de guerrier :|- Champion occultiste : croisement maléfique entre un guerrier et un magicien et spécialiste notoire dans le lancement de malédictions.|- Duelliste : guerrier vif et intelligent dédaignant les armures lourdes pour une meilleure maîtrise de l'esquive, des réflexes et du combat en général.|- Poing de l'Ordre : guerrier brutal et maléfique, mais néanmoins efficace et loyal.|- Chevalier noir : un combattant avec un background et des aptitudes opposées à celles du paladin.|- Magelame : guerrier qui a appris à lancer des sorts de magie profane en armure.",
+   "urls": [
+    "https://www.gibberlings3.net/mods/kits/swordandfist",
+    "https://github.com/Gibberlings3/sword_and_fist"
+   ],
+   "categories": [
+    "Kit"
+   ],
+   "games": [
+    "BG2",
+    "Tutu",
+    "BGT",
+    "BGEE",
+    "BG2EE",
+    "EET",
+    "IWDEE"
+   ],
+   "authors": [
+    "Andyr",
+    "CamDawg",
+    "NiGHTMARE"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "de",
+    "pl",
+    "es",
+    "fr",
+    "it",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2025-05-07",
+   "compatibilities": {},
+   "tp2": "sword_and_fist"
+  },
+  {
+   "id": 1141,
+   "name": "The Tweaks Anthology",
+   "description": "Ce mod permet de faire mille et un petits ajustements au jeu. Vous pouvez faire des changements purement esthétiques (comme masquer les casques sur les avatars, utiliser les incantations visuelles d'Icewind Dale, ...), faire des changements aux règles (suppression de la limite d'XP, changement des tables d'expériences, lancement de sorts en armures) et assouplir certains mécanismes du jeu (empilement illimité de munitions, multi-romances, ...).|Il remplace complètement les anciens mods BG Tweaks, [[121]], G3 Tweaks, [[1140]], [[349]], [[509]], Icewind Dale II Tweak et Planescape: Torment Tweak.",
+   "urls": [
+    "https://www.gibberlings3.net/mods/tweaks/tweaks/",
+    "https://github.com/Gibberlings3/Tweaks-Anthology/"
+   ],
+   "categories": [
+    "Gameplay"
+   ],
+   "games": [
+    "BG",
+    "BG2",
+    "BGT",
+    "BGEE",
+    "BG2EE",
+    "EET",
+    "IWD",
+    "IWD2",
+    "IWDEE",
+    "PST",
+    "PSTEE",
+    "SoD",
+    "Tutu"
+   ],
+   "authors": [
+    "CamDawg",
+    "Idobek"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "cn",
+    "cz",
+    "fr",
+    "de",
+    "it",
+    "kr",
+    "pl",
+    "ru",
+    "es"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2025-08-22",
+   "compatibilities": {},
+   "tp2": "cdtweaks"
+  },
+  {
+   "id": 1176,
+   "name": "Vampire World",
+   "description": "Ce mod fait la part belle aux morts-vivants dans la Saga. Vous pouvez devenir mort-vivant, en accueillir dans votre groupe, embaucher Bodhi après l'avoir tuée...",
+   "urls": [
+    "https://www.shsforums.net/topic/59490-mod-vampire-world-for-eet/",
+    "https://github.com/Spellhold-Studios/Miscellaneous/raw/refs/heads/main/mods/Vampire_world_mod_v.0.56_EET.zip"
+   ],
+   "categories": [
+    "Gameplay"
+   ],
+   "games": [
+    "BGEE",
+    "SoD",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Lassal"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 1,
+   "languages": [
+    "en"
+   ],
+   "status": [
+    "beta"
+   ],
+   "last_update": "2017-10-18",
+   "compatibilities": {
+    "requires": [
+     372
+    ]
+   },
+   "tp2": "Vampire_World"
+  },
+  {
+   "id": 1181,
+   "name": "Verr'Sza",
+   "description": "Ce mod amène Verr’Sza, le compagnon rakshasa, dans Baldur's Gate 2. C'est une continuation du mod [[1182]], écrit par le même auteur. Cependant, si les mods ont été écrits pour permettre la poursuite du partenariat entre l'Enfant de Bhaal et Verr’Sza, il est possible de démarrer une toute nouvelle relation avec Verr’Sza, au lieu de continuer le contenu de BG.|Verr’Sza est un rôdeur maléfique ; pas toujours très préoccupé par la loi des hommes. Il est pragmatique, et suit les règles qu'il s'est lui-même fixées et son idée de la façon dont les choses doivent être faites. Pourtant, il s'intéresse aussi à l'apprentissage. Il n'est pas grossier. Il n'est pas imprudent, même s'il n'est pas un exemple de patience, il comprend que certaines questions nécessitent différents types d'actions et d'attitudes. Le mod inclut la romance (pour les enfants de Bhaal, quel que soit leur sexe), qui peut différer légèrement, selon que vous poursuivez ou non votre romance depuis BG1.|Notez qu'en raison de l'attitude et du langage des PNJ, le contenu du mod peut être considéré comme explicite. Le mod a été écrit en pensant aux joueurs adultes.",
+   "urls": [
+    "https://www.weaselmods.net/forumdisplay.php?fid=14",
+    "https://forums.beamdog.com/discussion/71309/",
+    "https://downloads.weaselmods.net/download/verrsza-bg2ee/"
+   ],
+   "categories": [
+    "PNJ recrutable"
+   ],
+   "games": [
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Lava Del'Vortel"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2025-12-27",
+   "compatibilities": {},
+   "tp2": "VerrBG2"
+  },
+  {
+   "id": 1241,
+   "name": "Yvette Romance",
+   "description": "Vous êtes-vous déjà procuré un parchemin renfermant autre chose que quelques lignes magiques ? C'est ainsi que vous ferez la connaissance d'Yvette. Aidez-la à se souvenir de son passé, laissez la vivre de nouvelles aventures, laissez la vous accompagner et peut-être pourrez-vous la toucher plus profondément qu'une simple amie. Yvette a du contenu pour SoA et ToB, banters et interjections sont également de la partie.",
+   "urls": [
+    "https://www.weaselmods.net/forumdisplay.php?fid=6",
+    "https://forums.beamdog.com/discussion/38948/",
+    "https://downloads.weaselmods.net/download/yvette-romance/"
+   ],
+   "categories": [
+    "PNJ recrutable"
+   ],
+   "games": [
+    "BG2",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "Lava Del'Vortel"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-06-26",
+   "compatibilities": {},
+   "tp2": "Yvette"
+  },
+  {
+   "id": 1296,
+   "name": "Solaufein's Rescue - jastey's Solaufein NPC mod for BGII",
+   "description": "Ce mod est une alternative au célèbre [[1294]].|Avant de pouvoir recruter Solaufein, vous devez le libérer des chambres des driders. Cette quête peut être jouée indépendamment du fait qu'il doive ensuite rejoindre le groupe ou non.|Solaufein peut également vous suivre en tant que « 7e membre du groupe » si votre groupe se compose déjà de 6 personnes. Pour plus de détails à ce sujet, veuillez lire le fichier readme.",
+   "urls": [
+    "https://baldurs-gate.de/index.php?threads/43420/",
+    "https://github.com/Gitjas/Solaufeins_Rescue_NPC/"
+   ],
+   "categories": [
+    "PNJ recrutable"
+   ],
+   "games": [
+    "BG2",
+    "BGT",
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "jastey"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "de",
+    "it",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2024-06-07",
+   "compatibilities": {},
+   "tp2": "c#solaufein"
+  },
+  {
+   "id": 1312,
+   "name": "The Bloodied Stings of Barovia",
+   "description": "Ce mod ajoute une nouvelle aventure sombre. Elle emmène l'Enfant de Bhaal et son groupe à Barovia, qui fait partie du royaume de Ravenloft. Dans cette contrée inquiétante, le joueur affrontera de nouveaux ennemis et de redoutables créatures, résoudra des énigmes complexes et vivra une histoire d'horreur gothique captivante. Plongez dans les brumes, traversez de dangereuses forêts et affrontez des créatures mortes-vivantes, tout en cherchant à regagner Athkatla.",
+   "urls": [
+    "https://www.weaselmods.net/forumdisplay.php?fid=65",
+    "https://forums.beamdog.com/discussion/87931/",
+    "https://downloads.weaselmods.net/download/the-bloodied-stings-of-barovia/"
+   ],
+   "categories": [
+    "Quête"
+   ],
+   "games": [
+    "BG2EE"
+   ],
+   "authors": [
+    "Lava Del'Vortel"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 2,
+   "languages": [
+    "en",
+    "ru",
+    "cn"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-02-04",
+   "compatibilities": {},
+   "tp2": "BloodiedStingsOfBarovia"
+  },
+  {
+   "id": 1326,
+   "name": "DLC Merger",
+   "description": "Ce mod permet de fusionner des DLC comme \"Siege of Dragonspear\" avec le contenu principal du jeu.",
+   "urls": [
+    "https://forums.beamdog.com/discussion/71305",
+    "https://github.com/Argent77/A7-DlcMerger"
+   ],
+   "categories": [
+    "Utilitaire"
+   ],
+   "games": [
+    "BGEE",
+    "SoD",
+    "BG2EE",
+    "EET",
+    "IWDEE",
+    "PSTEE"
+   ],
+   "authors": [
+    "Argent77"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "n/a",
+   "safe": 2,
+   "languages": [
+    "en",
+    "de",
+    "br",
+    "cn",
+    "es",
+    "fr",
+    "it"
+   ],
+   "status": [
+    "stable"
+   ],
+   "last_update": "2026-07-03",
+   "compatibilities": {},
+   "tp2": "DlcMerger"
+  },
+  {
+   "id": 1327,
+   "name": "Enhanced Edition Fixpack",
+   "description": "Le EE Fixpack est une compilation WeiDU de corrections pour les éditions améliorées de Baldur's Gate, Baldur's Gate II, Icewind Dale, et Planescape : Torment. Cet effort de collaboration, qui comprend le travail de moddeurs de plusieurs communautés différentes, est destiné à résoudre les problèmes qui subsistent dans ces jeux après le patch officiel actuel.",
+   "urls": [
+    "https://www.gibberlings3.net/forums/forum/232-ee-fixpack",
+    "https://github.com/Gibberlings3/EE_Fixpack"
+   ],
+   "categories": [
+    "Patch non officiel"
+   ],
+   "games": [
+    "BGEE",
+    "BG2EE",
+    "EET",
+    "IWDEE",
+    "PSTEE"
+   ],
+   "authors": [
+    "CamDawg",
+    "Luke",
+    "Argent77",
+    "DavidW"
+   ],
+   "team": [],
+   "notes": [
+    "Il doit être installé sur BGEE et BG2EE avant [[372]]."
+   ],
+   "translation_state": "auto",
+   "safe": 1,
+   "languages": [
+    "cz",
+    "de",
+    "en",
+    "es",
+    "fr",
+    "hu",
+    "it",
+    "jp",
+    "kr",
+    "no",
+    "pl",
+    "br",
+    "ru",
+    "ua",
+    "cn"
+   ],
+   "status": [
+    "beta"
+   ],
+   "last_update": "2026-08-14",
+   "compatibilities": {},
+   "tp2": "eefixpack"
+  },
+  {
+   "id": 1913,
+   "name": "Mazzy Romance",
+   "description": "Ce mod ajoute une longue histoire d'amour avec Mazzy, la charmante chevalier petite-personne.|Il comprend 20 conversations chronométrées ainsi que diverses conversations liées à des événements dans Shadows of Amn, 8 conversations dans ToB, un épilogue romantique avec de petites variations en fonction de vos choix personnels et des circonstances, et les événements habituels liés à la romance.|Pour activer la romance, si vous remplissez les conditions requises (alignement non mauvais), vous devez avoir une réputation de 15 ou plus.",
+   "urls": [
+    "https://theartisanbg.github.io/The-Artisans-Corner/mazzyrom-bg2",
+    "https://github.com/TheArtisanBG/Mazzy-Romance-BG2EE/"
+   ],
+   "categories": [
+    "PNJ (autre)"
+   ],
+   "games": [
+    "BG2EE",
+    "EET"
+   ],
+   "authors": [
+    "AionZ"
+   ],
+   "team": [],
+   "notes": [],
+   "translation_state": "auto",
+   "safe": 1,
+   "languages": [
+    "en"
+   ],
+   "status": [
+    "beta"
+   ],
+   "last_update": "2026-04-23",
+   "compatibilities": {},
+   "tp2": "Artisans_MazzyRom"
+  },
+  {
+   "id": 99991,
+   "name": "Not a WeiDU mod",
+   "tp2": "non-weidu",
+   "urls": [],
+   "safe": 2,
+   "status": [
+    "stable"
+   ],
+   "last_update": "2020-01-01"
+  }
+ ]
+}

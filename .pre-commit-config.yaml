@@ -1,0 +1,41 @@
+# Runs the fast half of CI before the commit exists. Deliberately does NOT run
+# mypy or the test suite: a pre-commit hook that takes thirty seconds is a hook
+# people disable, and a disabled hook checks nothing.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(legacy/|tests/data/)
+      - id: end-of-file-fixer
+        exclude: ^(legacy/|tests/data/)
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^tests/data/    # fixtures include deliberately malformed JSON
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: ^(legacy/|tests/data/)
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: local
+    hooks:
+      # Cheap, and the one that catches the mistake this project cares about
+      # most: a third-party import sneaking into the runtime (ADR-0002).
+      - id: stdlib-only-runtime
+        name: the runtime imports the standard library only
+        entry: python3 tools/check_stdlib_only.py
+        language: system
+        files: ^iemod_fetch/.*\.py$
+        pass_filenames: false

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # The developer toolchain is the only dependency surface there is: the shipped
+  # tool has none (ADR-0002).
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"
+
+  # An unpinned action is remote code with write access to the release job.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    commit-message:
+      prefix: "ci"

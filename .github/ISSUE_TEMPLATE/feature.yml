@@ -1,0 +1,33 @@
+name: Feature request
+description: Something the tool should do and does not.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where the tool stops you.
+    validations: { required: true }
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+    validations: { required: true }
+
+  - type: checkboxes
+    id: guessing
+    attributes:
+      label: The one rule
+      description: >
+        This tool never guesses. A feature that infers, searches or picks the
+        first plausible match is out of scope regardless of how convenient it
+        would be — that class of behaviour is what the rewrite removed.
+      options:
+        - label: This does not require the tool to guess, or I have explained below why it is deterministic.
+          required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do instead today

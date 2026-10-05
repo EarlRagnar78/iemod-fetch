@@ -1,0 +1,146 @@
+# Cut a release from a tag. Nothing here reads a long-lived secret: PyPI is
+# reached with OIDC trusted publishing, and the signing identity is the workflow
+# itself. There is no token to leak because there is no token.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and attest, but publish nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Re-run the full gate
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build distributions
+    needs: [verify]
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - run: pip install build cyclonedx-bom
+
+      - name: The tag and the packaged version agree
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(python -c "import iemod_fetch; print(iemod_fetch.__version__)")
+          test "$tag" = "$pkg" || {
+            echo "tag $tag does not match packaged version $pkg"; exit 1; }
+
+      - name: sdist and wheel
+        run: python -m build
+
+      - name: Single-file zipapp
+        run: |
+          python build.py
+          cp iemod-fetch.pyz dist/
+
+      - name: Digest of the artifact people actually download
+        id: digest
+        run: |
+          echo "sha256=$(sha256sum dist/iemod-fetch.pyz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      # An SBOM for a tool with no runtime dependencies is a short document, and
+      # that is the point: it is the machine-readable form of the claim, and a
+      # consumer's policy engine can check it without taking my word for it.
+      - name: SBOM (CycloneDX)
+        run: cyclonedx-py environment -o dist/iemod-fetch.sbom.json || \
+             cyclonedx-py -o dist/iemod-fetch.sbom.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  provenance:
+    name: Build provenance
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # Sigstore, keyless
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist }
+
+      # Says which workflow, at which commit, produced these bytes. Verifiable
+      # with `gh attestation verify dist/iemod-fetch.pyz --repo <owner>/<repo>`.
+      - uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            dist/iemod-fetch.pyz
+            dist/*.whl
+            dist/*.tar.gz
+
+  publish-github:
+    name: GitHub Release
+    needs: [build, provenance]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist }
+
+      - name: Release notes from the changelog
+        run: |
+          python - <<'PY' > NOTES.md
+          import pathlib, re
+          tag = "${{ github.ref_name }}".lstrip("v")
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(rf"^## \[{re.escape(tag)}\].*?$(.*?)(?=^## \[|\Z)",
+                            text, re.S | re.M)
+          print(match.group(1).strip() if match
+                else f"See CHANGELOG.md for {tag}.")
+          PY
+          {
+            echo
+            echo '### Verify this download'
+            echo '```'
+            echo 'sha256  ${{ needs.build.outputs.digest }}  iemod-fetch.pyz'
+            echo 'gh attestation verify iemod-fetch.pyz --repo ${{ github.repository }}'
+            echo '```'
+          } >> NOTES.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: NOTES.md
+          files: dist/*
+          draft: true          # a human reads the notes before it goes out
+          fail_on_unmatched_files: true
+
+  publish-pypi:
+    name: PyPI (trusted publishing)
+    needs: [build, provenance]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi          # requires a manual approval on the environment
+    permissions:
+      id-token: write          # OIDC — no API token stored anywhere
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist }
+      - name: Drop the non-Python artifacts
+        run: rm -f dist/iemod-fetch.pyz dist/SHA256SUMS dist/*.sbom.json
+      - uses: pypa/gh-action-pypi-publish@release/v1

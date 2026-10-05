@@ -1,0 +1,11 @@
+{
+ "t": "stratagems",
+ "c": "TACTICAL MODS",
+ "ord": 10,
+ "co": [
+  {
+   "wf": "stratagems",
+   "wp": "stratagems\\setup-stratagems.tp2"
+  }
+ ]
+}

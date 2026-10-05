@@ -1,0 +1,46 @@
+# iemod-fetch configuration.
+#
+# Copy to iemod-fetch.ini next to the game install (or into the --target
+# directory, %APPDATA%, or ~/.config/) and delete what you do not need.
+# An explicit command-line flag always beats this file; this file always beats
+# the built-in default.
+
+[iemod-fetch]
+
+# --- inputs ---------------------------------------------------------------
+manifest = mod_downloads.ready.json
+aliases  = aliases.json
+
+# repeatable options take one value per line, or a comma-separated list.
+# append :GAME to a log to say which install it describes (EET is detected).
+weidu_log =
+    WeiDU.log
+    WeiDU-BGEE.log:BGEE
+
+catalogue = lcc-docs/db/mods.json
+
+# --- output ---------------------------------------------------------------
+target      = Mods
+json_report = plan.json
+
+# --- limits ---------------------------------------------------------------
+# The per-download ceiling. Real mods are big: BGGO is 1.4 GB, so anything
+# below ~2 GiB will reject legitimate downloads. Accepts bytes or a unit
+# (2GiB, 1500MB, 2G).
+max_bytes = 2GiB
+
+workers = 4
+timeout = 45
+retries = 3
+
+# --- policy ---------------------------------------------------------------
+# allow_http     = false   # permit cleartext http:// downloads
+# allow_exe      = false   # unpack self-extracting .exe archives (never run)
+# accept_offsite = false   # follow download links that leave the mod's site
+# allow_manual   = false   # exit 0 even when some mods need a manual download
+
+# --- trusted-owner discovery ---------------------------------------------
+# no_discovery = false
+# trusted_owner =
+#     Gibberlings3
+#     Spellhold-Studios
