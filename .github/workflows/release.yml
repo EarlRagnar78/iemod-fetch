@@ -78,7 +78,7 @@ jobs:
       id-token: write          # Sigstore, keyless
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: dist, path: dist }
 
       # Says which workflow, at which commit, produced these bytes. Verifiable
@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: dist, path: dist }
 
       - name: Release notes from the changelog
@@ -139,7 +139,7 @@ jobs:
     permissions:
       id-token: write          # OIDC — no API token stored anywhere
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: dist, path: dist }
       - name: Drop the non-Python artifacts
         run: rm -f dist/iemod-fetch.pyz dist/SHA256SUMS dist/*.sbom.json
