@@ -83,7 +83,7 @@ jobs:
 
       # Says which workflow, at which commit, produced these bytes. Verifiable
       # with `gh attestation verify dist/iemod-fetch.pyz --repo <owner>/<repo>`.
-      - uses: actions/attest-build-provenance@v1
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/iemod-fetch.pyz
