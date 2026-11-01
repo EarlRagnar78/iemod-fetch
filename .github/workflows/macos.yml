@@ -1,0 +1,72 @@
+# The test suite on macOS - informational, not a gate.
+#
+# The CI gate (ci.yml), which the release workflow re-runs, is Linux and
+# Windows. macOS runners stopped being assigned to this repository on
+# 2026-10-21 (jobs queued, then cancelled without a runner), and a release was
+# held for it; the owner decided macOS should not block a pull request or a
+# release. It still runs on every pull request and on main, so a macOS
+# regression is still seen - it just does not stop anything.
+name: macOS (informational)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONHASHSEED: "0"
+  FORCE_COLOR: "1"
+
+jobs:
+  test:
+    name: tests on macos-latest (informational)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
+      - run: pip install -e ".[test]"
+      - name: Test suite
+        run: python -m pytest -q
+
+  gui:
+    # The wizard's tests on macOS (GUI-AUDIT M3: offscreen on Windows, Linux
+    # and macOS), informational like the rest of this file.
+    name: GUI (PySide6, offscreen) on macos-latest (informational)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      IEMOD_REQUIRE_GUI: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
+      - run: pip install -e ".[guitest]"
+      - name: The wizard's tests, and the api it calls
+        run: python -m pytest -q -rs tests/gui tests/test_project.py

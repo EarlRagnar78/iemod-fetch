@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/selection-v1.schema.json",
+  "title": "iemod-fetch selection, version 1",
+  "description": "What a player chose: one install, or two for EET (BGEE and EET), each an ordered list of components. Equivalent to WeiDU.log (ADR-0030). iemod_fetch/selection.py is the authority; this schema is for editors and other front ends.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "installs"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "installs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["game", "components"],
+        "properties": {
+          "game": {"enum": ["BG", "Tutu", "BG2", "BGT", "BGEE", "SoD", "BG2EE", "EET",
+                            "IWD", "IWDEE", "IWD2", "PST", "PSTEE"]},
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tp2", "component"],
+              "properties": {
+                "tp2": {"type": "string", "pattern": "^[^~]+\\.[Tt][Pp]2$",
+                        "description": "folder/setup-mod.tp2, as WeiDU.log names it"},
+                "component": {"type": "integer"},
+                "language": {"type": "integer", "default": 0},
+                "label": {"type": "string", "pattern": "^[^~\\r\\n]*$"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

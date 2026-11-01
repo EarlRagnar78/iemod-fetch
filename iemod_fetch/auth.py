@@ -17,14 +17,20 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional
 
+from . import childenv
+from .childenv import child_env
 from .errors import ConfigError, ModFetchError
 
 # Shapes GitHub issues: classic PAT, OAuth app, user-to-server, server-to-server,
 # refresh, and fine-grained PAT. Anything else from a credential helper is not a
-# token and must not be sent as a bearer.
-_TOKEN_SHAPE = re.compile(r"^(gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})$")
+# token and must not be sent as a bearer. Since 2026 a GitHub App installation
+# token (ghs_) is stateless: a JWT after the prefix, about 520 characters with
+# two dots and base64url's '-' and '_' (GitHub's changelog, 2026-04-24 and
+# 2026-05-15). It is matched as three non-empty segments, not as GitHub's looser
+# `ghs_[A-Za-z0-9.\-_]{36,}`, which would also take a run of dots.
+_TOKEN_SHAPE = re.compile(r"^(gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}"
+                          r"|ghs_(?=.{36,}$)[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$")
 
 DEVICE_CODE_URL = "https://github.com/login/device/code"
 ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -32,7 +38,7 @@ ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 
 @dataclass
 class Credential:
-    token: Optional[str]
+    token: str | None
     source: str
 
     @property
@@ -45,10 +51,11 @@ class Credential:
         return f"token from {self.source} (5000 requests/hour)"
 
 
-def _from_gh_cli() -> Optional[str]:
+def _from_gh_cli() -> str | None:
     try:
-        out = subprocess.run(["gh", "auth", "token"], stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, timeout=15, check=False)
+        out = childenv.run(["gh", "auth", "token"], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=15, check=False,
+                             env=child_env())
     except (OSError, subprocess.TimeoutExpired):
         return None
     if out.returncode != 0:
@@ -57,7 +64,7 @@ def _from_gh_cli() -> Optional[str]:
     return token or None
 
 
-def _from_git_credential(host: str = "github.com") -> Optional[str]:
+def _from_git_credential(host: str = "github.com") -> str | None:
     """
     Ask git's own credential helper for an existing GitHub token.
 
@@ -74,9 +81,9 @@ def _from_git_credential(host: str = "github.com") -> Optional[str]:
                "-c", "credential.interactive=false",
                "-c", "credential.guiPrompt=false",
                "credential", "fill"]
-    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never")
+    env = child_env({"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"})
     try:
-        proc = subprocess.run(command,
+        proc = childenv.run(command,
                               input=f"protocol=https\nhost={host}\n\n".encode(),
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                               timeout=15, check=False, env=env)
@@ -87,22 +94,22 @@ def _from_git_credential(host: str = "github.com") -> Optional[str]:
     for line in proc.stdout.decode("utf-8", "replace").splitlines():
         if line.startswith("password="):
             token = line.partition("=")[2].strip()
-            return token if _TOKEN_SHAPE.match(token) else None
+            return token if _TOKEN_SHAPE.fullmatch(token) else None
     return None
 
 
-def resolve_credential(token_file: Optional[str] = None, use_gh: bool = True,
+def resolve_credential(token_file: str | None = None, use_gh: bool = True,
                        allow_prompt: bool = False,
-                       oauth_client_id: Optional[str] = None,
+                       oauth_client_id: str | None = None,
                        use_git_credential: bool = True,
                        client=None) -> Credential:
     """
     Resolution order, most explicit first. Never echoes the token.
     """
-    token: Optional[str]
+    token: str | None
     if token_file:
         try:
-            with open(token_file, "r", encoding="utf-8") as fh:
+            with open(token_file, encoding="utf-8") as fh:
                 token = fh.read().strip()
         except OSError as exc:
             raise ConfigError(f"cannot read --token-file {token_file}: {exc}") from exc

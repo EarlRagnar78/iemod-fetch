@@ -14,7 +14,6 @@ layer honestly pure, and makes these testable without a client at all.
 """
 import re
 import urllib.parse
-from typing import Optional
 
 ARCHIVE_EXT = (".iemod", ".zip", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz",
                ".7z", ".rar")
@@ -44,7 +43,36 @@ def unwrap_redirect(url: str) -> str:
     return url
 
 
-def repo_from_url(url: str) -> Optional[str]:
+# Where code is published: never a forum, whatever its paths are called.
+CODE_HOSTS = frozenset({"github.com", "gitlab.com", "bitbucket.org", "codeberg.org",
+                        "sourceforge.net"})
+
+
+def is_forum_post(url: str) -> bool:
+    """
+    A forum thread, or a file attached to one: anyone in the thread may have
+    posted it. Measured on 2026-10-23 (GUI-AUDIT M7 item 58), with GitHub out
+    of reach: from the Beamdog threads lcc-docs lists, 8 mods of one EET log
+    got a file that was not the mod (a save game, debug logs, a patch, another
+    mod, a sound) and two got one years behind their authors' releases
+    (Ascension v1.5 BETA for 2.1.0, Finch v4.0 for v6.0).
+    """
+    parts = urllib.parse.urlsplit(url or "")
+    host, path = (parts.hostname or "").lower(), parts.path.lower()
+    segments = set(path.split("/"))
+    # XenForo keeps the route in the query: `index.php?threads/45508/` is a
+    # thread (baldurs-gate.de's link to a dead Dark Tidings .rar), while
+    # `index.php?resources/...` is the author's own release page.
+    route = parts.query.lower().lstrip("/") if path.endswith("/index.php") else ""
+    if host.removeprefix("www.") in CODE_HOSTS:
+        return False                    # a repository named `topic` is no thread
+    return (host.startswith("forums.")
+            or bool(segments & {"topic", "discussion", "threads"})   # G3: /forums/topic/
+            or path.endswith("/viewtopic.php")
+            or route.startswith("threads/"))
+
+
+def repo_from_url(url: str) -> str | None:
     """Extract owner/repo from a github.com URL. Returns None for profile URLs."""
     parsed = urllib.parse.urlparse(url or "")
     if parsed.hostname not in ("github.com", "www.github.com"):

@@ -11,12 +11,11 @@ A pinned manifest is not a different format: it is the same
 so it stays readable by anything that reads the original.
 """
 import json
-import os
 import posixpath
 import time
 import urllib.parse
-from typing import Dict, List, Optional
 
+from .atomic import write_text
 from .errors import ManifestError
 from .manifest import KNOWN_FIELDS, Manifest
 from .report import Record, Status
@@ -24,7 +23,7 @@ from .report import Record, Status
 PINNABLE = (Status.OK, Status.PLANNED, Status.SKIPPED)
 
 
-def _asset_name(record: Record) -> Optional[str]:
+def _asset_name(record: Record) -> str | None:
     """Only a real release asset has a stable filename worth pinning."""
     if record.origin != "release-asset" or not record.url:
         return None
@@ -32,8 +31,8 @@ def _asset_name(record: Record) -> Optional[str]:
     return name or None
 
 
-def build_pinned_manifest(manifest: Manifest, records: List[Record],
-                          state: Optional[Dict[str, dict]] = None) -> dict:
+def build_pinned_manifest(manifest: Manifest, records: list[Record],
+                          state: dict[str, dict] | None = None) -> dict:
     """
     Return a manifest dict with `release_tag`, `asset` and `sha256` filled in
     from this run, plus a per-entry note when nothing could be pinned.
@@ -42,7 +41,7 @@ def build_pinned_manifest(manifest: Manifest, records: List[Record],
     additive and never drops information.
     """
     state = state or {}
-    by_key: Dict[str, Record] = {}
+    by_key: dict[str, Record] = {}
     for record in records:
         if record.status not in PINNABLE or not record.source_key:
             continue
@@ -110,9 +109,4 @@ def build_pinned_manifest(manifest: Manifest, records: List[Record],
 
 
 def write_pinned_manifest(path: str, payload: dict) -> None:
-    tmp = path + ".tmp"
-    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
-    os.replace(tmp, path)
+    write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")

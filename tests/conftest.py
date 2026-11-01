@@ -112,3 +112,26 @@ try:
                                                        "default"))
 except ImportError:                          # pragma: no cover - stdlib-only run
     pass
+
+
+def pytest_configure(config):
+    # Hypothesis emits this on slow CI runners; it is a timing observation, not
+    # a defect in the code under test. Registered here rather than in
+    # pyproject.toml so a run without Hypothesis does not fail on the filter.
+    try:
+        import hypothesis.errors  # noqa: F401
+    except ImportError:                      # pragma: no cover - stdlib-only run
+        return
+    config.addinivalue_line(
+        "filterwarnings", "ignore::hypothesis.errors.NonInteractiveExampleWarning")
+
+
+@pytest.fixture(autouse=True)
+def _no_community_data_refresh(tmp_path_factory, monkeypatch):
+    """
+    A run refreshes the community data cache when it starts (ADR-0032). Tests
+    never reach GitHub and never touch the user's real cache: the refresh is
+    off and the cache is an empty directory, unless a test turns it on.
+    """
+    monkeypatch.setenv("IEMOD_NO_UPDATE_DATA", "1")
+    monkeypatch.setenv("IEMOD_DATA_DIR", str(tmp_path_factory.mktemp("data-cache")))

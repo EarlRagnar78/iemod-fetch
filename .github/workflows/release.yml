@@ -1,50 +1,224 @@
-# Cut a release from a tag. Nothing here reads a long-lived secret: PyPI is
-# reached with OIDC trusted publishing, and the signing identity is the workflow
-# itself. There is no token to leak because there is no token.
+# Cut a release - automatically (ADR-0027). Nothing here reads a long-lived
+# secret: PyPI is reached with OIDC trusted publishing, the signing identity is
+# the workflow itself, and the tag is made with this run's own GITHUB_TOKEN.
+#
+# When main gets a CHANGELOG.md whose newest `## [X.Y.Z]` section has no tag
+# yet, tools/release_plan.py names the commit to release (the main-line merge
+# where __version__ became X.Y.Z), and this workflow builds it, attests it,
+# tags it vX.Y.Z and publishes the GitHub Release with that section as notes.
+# The tag is created here and not pushed separately because a tag pushed with
+# GITHUB_TOKEN starts no workflow. A tag pushed by hand still works.
+#
+# A pull request that changes this pipeline rehearses it on its own commit:
+# gate, build, attestation - never notes, tag, release or PyPI. That is how a
+# Dependabot bump of an action used only here is exercised before it merges.
 name: Release
 
 on:
   push:
+    branches: [main]
+    paths: ["CHANGELOG.md", "iemod_fetch/__init__.py"]
     tags: ["v*"]
+  pull_request:
+    paths: [".github/workflows/release.yml", "tools/release_plan.py", "tools/release_notes.py",
+            "packaging/**"]
   workflow_dispatch:
     inputs:
+      version:
+        description: "Release this version (e.g. 2.1.0) if it has no tag yet; empty = newest in CHANGELOG.md"
+        required: false
+        default: ""
       dry_run:
         description: "Build and attest, but publish nothing"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  # Releases queue one behind the other; a rehearsal has its own group per pull
+  # request, so it never holds up a release and a newer push replaces it.
+  group: ${{ github.event_name == 'pull_request' && format('release-{0}', github.ref) || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  decide:
+    name: What to release, and which commit
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release == 'true' && steps.gate.outputs.go == 'true' && 'true' || 'false' }}
+      tag: ${{ steps.plan.outputs.tag }}
+      sha: ${{ steps.plan.outputs.sha }}
+      latest: ${{ steps.plan.outputs.latest }}
+      workflows_differ: ${{ steps.plan.outputs.workflows_differ }}
+      # 'true' only when RELEASE_TOKEN is set AND GitHub accepts it
+      release_token: ${{ steps.gate.outputs.release_token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, fetch-depth: 0, fetch-tags: true }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: Plan
+        id: plan
+        env:
+          VERSION: ${{ inputs.version }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+          # Released by the automatic run once the newest version is tagged,
+          # one per run, if still untagged (ADR-0027).
+          BACKFILL: "2.1.0,4.0.0"
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            if [ "$HEAD_REPO" = "$REPO" ]; then
+              python tools/release_plan.py --pull-request >> "$GITHUB_OUTPUT"
+            else
+              # A fork's run may not sign an attestation (no id-token).
+              echo "::notice::rehearsal skipped: the pull request comes from a fork"
+              echo "release=false" >> "$GITHUB_OUTPUT"
+            fi
+          elif [ "$REF_TYPE" = "tag" ]; then
+            # A tag pushed by hand: release exactly what it points at.
+            { echo "release=true"; echo "tag=$REF_NAME"; echo "sha=$GITHUB_SHA"; } >> "$GITHUB_OUTPUT"
+          else
+            python tools/release_plan.py $VERSION >> "$GITHUB_OUTPUT"
+          fi
+          # "latest" is judged against main's changelog: on a tag pushed by hand
+          # the checkout is the tagged commit, whose changelog may not know a
+          # newer release (4.0.0 tagged after 4.0.1 must not become Latest).
+          git show origin/main:CHANGELOG.md > /tmp/main-changelog.md 2>/dev/null || cp CHANGELOG.md /tmp/main-changelog.md
+          newest=$(python -c "import tools.release_plan as r; print(r.newest_release(open('/tmp/main-changelog.md', encoding='utf-8').read()))")
+          tag=$(sed -n 's/^tag=//p' "$GITHUB_OUTPUT" | tail -1)
+          if [ "$tag" = "v$newest" ]; then echo "latest=true"; else echo "latest=false"; fi >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+      # GITHUB_TOKEN cannot create a tag on a commit whose workflow files differ
+      # from main's (it can never hold the `workflows` permission): GitHub
+      # answers 403 at the very last step. Say so now, with the two ways out.
+      # RELEASE_TOKEN is used, and so checked, only when the release needs it
+      # (its commit's workflow files differ from main's); every other release
+      # is tagged with the run's own token, so a wrong or expired secret cannot
+      # break it. When needed, it is checked against GitHub here, not trusted
+      # for being set: 4.0.0's run built and attested for 15 minutes, then the
+      # publish step met "Bad credentials" from an expired token. The check
+      # proves the token is live (a 401 is caught); the repository is public,
+      # so it cannot prove the token may write to it - a token for the wrong
+      # repository still fails at the publish step (docs/RELEASING.md,
+      # "RELEASE_TOKEN").
+      # An automatic back-fill waits quietly; one asked for by hand fails, so
+      # the person who asked sees why.
+      - name: The tag can be created with the token this run has
+        id: gate
+        env:
+          DIFFER: ${{ steps.plan.outputs.workflows_differ }}
+          RELEASE: ${{ steps.plan.outputs.release }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          SHA: ${{ steps.plan.outputs.sha }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          go=true
+          usable=false
+          if [ "$RELEASE" = "true" ] && [ "$DIFFER" = "true" ] && [ -n "$RELEASE_TOKEN" ]; then
+            code=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer $RELEASE_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO") || code=000
+            if [ "$code" = "200" ]; then
+              usable=true
+            else
+              echo "::warning title=RELEASE_TOKEN rejected::GitHub answered HTTP $code to the RELEASE_TOKEN secret (401: expired or revoked; 000: GitHub not reached). It is not used. Renew it: docs/RELEASING.md, \"RELEASE_TOKEN\"."
+            fi
+          fi
+          if [ "$RELEASE" = "true" ] && [ "$DIFFER" = "true" ] && [ "$usable" != "true" ]; then
+            if [ -n "$RELEASE_TOKEN" ]; then state="the RELEASE_TOKEN secret is set but GitHub rejects it"; else state="there is no RELEASE_TOKEN secret"; fi
+            why="$TAG is on $SHA, whose workflow files differ from main's, so GITHUB_TOKEN may not create that tag, and $state. Renew RELEASE_TOKEN (a fine-grained token for this repository: Contents and Workflows, read and write) and re-run this workflow, or push the tag by hand (git tag $TAG $SHA && git push origin $TAG). See docs/RELEASING.md, \"RELEASE_TOKEN\"."
+            if [ "$EVENT" = "workflow_dispatch" ]; then echo "::error::$why"; exit 1; fi
+            echo "::warning title=$TAG not released yet::$why"
+            go=false
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "release_token=$usable" >> "$GITHUB_OUTPUT"
+
+  # Published notes follow CHANGELOG.md: a corrected section reaches its
+  # release on the next push. Editing a release creates no ref, so the run's
+  # own token may do it.
+  notes:
+    name: Release notes in step with CHANGELOG.md
+    if: github.ref_type != 'tag' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: Sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python tools/release_notes.py sync
+      # A back-fill's tag starts the tagged commit's own, older release
+      # workflow, which may mark that back-fill Latest (4.0.0 over 4.0.1 on
+      # 2026-10-31): put "Latest" back on the newest release.
+      - name: Latest is the newest release
+        if: ${{ !cancelled() }}        # a failed notes edit does not stop this
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python tools/release_notes.py latest
+
   verify:
     name: Re-run the full gate
+    needs: [decide]
+    if: needs.decide.outputs.release == 'true'
     uses: ./.github/workflows/ci.yml
 
   build:
     name: Build distributions
-    needs: [verify]
+    needs: [decide, verify]
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.digest.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.decide.outputs.sha }}
+      # A commit made before .python-version existed was built on 3.12
+      # (ADR-0043); a dispatch for such a version builds it on 3.12 again.
+      - name: The Python this commit was built with
+        shell: bash
+        run: test -f .python-version || echo 3.12 > .python-version
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        # a commit made before 4.0.0 has none
+        run: |
+          if [ -f requirements/runtime.txt ]; then
+            pip install --require-hashes -r requirements/runtime.txt
+          fi
 
       - run: pip install build cyclonedx-bom
 
       - name: The tag and the packaged version agree
-        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ needs.decide.outputs.tag }}
         run: |
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${TAG#v}"
           pkg=$(python -c "import iemod_fetch; print(iemod_fetch.__version__)")
           test "$tag" = "$pkg" || {
             echo "tag $tag does not match packaged version $pkg"; exit 1; }
 
+      # Not `python -m build`: with the repository as the working directory that
+      # imports this repository's own build.py (the zipapp script), not PyPA's
+      # build, and no dist/ is ever made.
       - name: sdist and wheel
-        run: python -m build
+        run: pyproject-build
 
       - name: Single-file zipapp
         run: |
@@ -64,83 +238,313 @@ jobs:
         run: cyclonedx-py environment -o dist/iemod-fetch.sbom.json || \
              cyclonedx-py -o dist/iemod-fetch.sbom.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist/
 
+  # The wizard as a program that needs no Python (GUI-AUDIT item 20, ADR-0040):
+  # PyInstaller, one folder (Qt stays separate, replaceable files - LGPL-3.0),
+  # started once offscreen before it is zipped. Linux on ubuntu-24.04, not
+  # -latest, and its zip held to Debian trixie's glibc and started there too,
+  # as the command line's is (ADR-0043 amendment of 2026-10-31).
+  gui:
+    name: Wizard bundle (${{ matrix.os }})
+    needs: [decide, verify]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.decide.outputs.sha }}
+      # A commit made before .python-version existed was built on 3.12
+      # (ADR-0043); a dispatch for such a version builds it on 3.12 again.
+      - name: The Python this commit was built with
+        shell: bash
+        run: test -f .python-version || echo 3.12 > .python-version
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: Qt's system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libgl1 libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+      - name: The runtime's libraries, by hash (ADR-0043)
+        shell: bash
+        run: test ! -f requirements/runtime.txt || pip install --require-hashes -r requirements/runtime.txt
+      - run: pip install ".[gui]" "pyinstaller==6.22.3"
+      # The program the wizard installs with, built for the bundle (ADR-0046);
+      # a commit made before packaging/mod_installer.py existed bundles none.
+      - name: musl's C compiler, for a static mod_installer (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y -q musl-tools
+      - name: Build mod_installer, then the bundle with it; start once, zip
+        shell: bash
+        run: |
+          if [ -f packaging/mod_installer.py ]; then
+            python packaging/mod_installer.py --out mod_installer-build
+            python packaging/gui_bundle.py --dist gui-dist --mod-installer mod_installer-build
+          else
+            python packaging/gui_bundle.py --dist gui-dist
+          fi
+      - name: The Linux zip on Debian trixie, the oldest system it is for
+        if: runner.os == 'Linux'
+        run: |
+          mkdir trixie-check && unzip -q gui-dist/iemod-fetch-gui-linux-*.zip -d trixie-check
+          # a commit made before this check has no ceiling of trixie's to hold it to
+          if [ -f packaging/cli_bundle.py ]; then
+            python -c "import sys; sys.path.insert(0, 'packaging'); import cli_bundle; cli_bundle.check_glibc('trixie-check')"
+          fi
+          image=""
+          for candidate in debian:trixie public.ecr.aws/docker/library/debian:trixie; do
+            if docker pull -q "$candidate"; then image="$candidate"; break; fi
+          done
+          test -n "$image" || { echo "::error::no registry gave debian:trixie"; exit 1; }
+          # Qt's own system libraries, as a player installs them (README)
+          docker run --rm -v "$PWD/trixie-check:/b:ro" "$image" sh -euc '
+            apt-get update -q >/dev/null
+            apt-get install -y -q --no-install-recommends \
+              libgl1 libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 >/dev/null
+            mkdir -p /tmp/project
+            QT_QPA_PLATFORM=offscreen /b/iemod-fetch-gui/iemod-fetch-gui --check --project /tmp/project'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gui-${{ matrix.os }}
+          path: gui-dist/*.zip
+      # mod_installer's Corresponding Source (GPL-3.0 section 6(d)): attached
+      # to the release beside the bundles that carry the program. One copy -
+      # `git archive` of the commit is the same bytes on every runner.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: runner.os == 'Linux'
+        with:
+          name: mod_installer-source
+          path: mod_installer-build/mod_installer-*-source.tar.gz
+          if-no-files-found: ignore
+
+  # The command line the same way (GUI-AUDIT item 36), for systems whose Python
+  # is older than the one this release needs. Linux on ubuntu-24.04, not
+  # -latest, which moves on its own: a Python built on a newer system needs its
+  # newer glibc. Debian trixie is the minimum platform (ADR-0043 amendment of
+  # 2026-10-31): cli_bundle.py refuses a bundle needing more than its 2.41,
+  # and the zip is run once more inside debian:trixie (review of #70).
+  # A commit made before cli_bundle.py existed builds none. Debian's image
+  # comes from Docker Hub, else from the ECR mirror of Docker's library: both
+  # limit anonymous pulls (ECR alone failed with "Data limit exceeded").
+  cli:
+    name: Command-line bundle (${{ matrix.os }})
+    needs: [decide, verify]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.decide.outputs.sha }}
+      - id: has
+        shell: bash
+        run: if [ -f packaging/cli_bundle.py ]; then echo "it=yes"; else echo "it=no"; fi >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.has.outputs.it == 'yes'
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043), and PyInstaller
+        if: steps.has.outputs.it == 'yes'
+        shell: bash
+        run: |
+          pip install --require-hashes -r requirements/runtime.txt
+          pip install . "pyinstaller==6.22.3"
+      - name: Build, check its glibc, run once unzipped, zip
+        if: steps.has.outputs.it == 'yes'
+        run: python packaging/cli_bundle.py --dist cli-dist
+      - name: Run the Linux zip on Debian trixie, the oldest system it is for
+        if: steps.has.outputs.it == 'yes' && runner.os == 'Linux'
+        run: |
+          mkdir debian-check && unzip -q cli-dist/iemod-fetch-cli-linux-*.zip -d debian-check
+          image=""
+          for candidate in debian:trixie public.ecr.aws/docker/library/debian:trixie; do
+            if docker pull -q "$candidate"; then image="$candidate"; break; fi
+          done
+          test -n "$image" || { echo "::error::no registry gave debian:trixie"; exit 1; }
+          docker run --rm -v "$PWD/debian-check:/b:ro" "$image" /b/iemod-fetch/iemod-fetch --version
+          docker run --rm -v "$PWD/debian-check:/b:ro" "$image" /b/iemod-fetch/iemod-fetch --help > /dev/null
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.has.outputs.it == 'yes'
+        with:
+          name: cli-${{ matrix.os }}
+          path: cli-dist/*.zip
+
   provenance:
     name: Build provenance
-    needs: [build]
+    needs: [build, gui, cli]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write          # Sigstore, keyless
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: dist, path: dist }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "gui-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "cli-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "mod_installer-source", path: dist, merge-multiple: true }
 
       # Says which workflow, at which commit, produced these bytes. Verifiable
       # with `gh attestation verify dist/iemod-fetch.pyz --repo <owner>/<repo>`.
-      - uses: actions/attest-build-provenance@v1
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/iemod-fetch.pyz
             dist/*.whl
             dist/*.tar.gz
+            dist/iemod-fetch-*.zip
 
   publish-github:
-    name: GitHub Release
-    needs: [build, provenance]
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Tag and GitHub Release
+    needs: [decide, build, gui, cli, provenance]
+    # Never from a pull request: that run is a rehearsal.
+    if: needs.decide.outputs.release == 'true' && !inputs.dry_run && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write          # creates the tag together with the release
     steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - uses: actions/download-artifact@v4
+      # The notes come from CHANGELOG.md as it is NOW, not at the release
+      # commit: a correction to an old section reaches its release by running
+      # this workflow for that version. The artifacts are built from the
+      # release commit (job `build`).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: dist, path: dist }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "gui-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "cli-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "mod_installer-source", path: dist, merge-multiple: true }
+      - name: The bundles in SHA256SUMS too
+        # one glob for the wizard's and the command line's zips: a version
+        # built before the command line's bundle existed has only the first
+        # mod_installer's source too (ADR-0046), when this commit built it
+        run: |
+          cd dist
+          sha256sum iemod-fetch-*.zip >> SHA256SUMS
+          if ls mod_installer-*-source.tar.gz > /dev/null 2>&1; then
+            sha256sum mod_installer-*-source.tar.gz >> SHA256SUMS
+          fi
+          cat SHA256SUMS
 
       - name: Release notes from the changelog
+        # Values reach the script through the environment, never by template
+        # expansion into its source: a tag name is attacker-chosen text.
+        env:
+          TAG: ${{ needs.decide.outputs.tag }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          python - <<'PY' > NOTES.md
-          import pathlib, re
-          tag = "${{ github.ref_name }}".lstrip("v")
-          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
-          match = re.search(rf"^## \[{re.escape(tag)}\].*?$(.*?)(?=^## \[|\Z)",
-                            text, re.S | re.M)
-          print(match.group(1).strip() if match
-                else f"See CHANGELOG.md for {tag}.")
-          PY
+          python tools/release_notes.py notes "$TAG" > NOTES.md
           {
             echo
             echo '### Verify this download'
             echo '```'
-            echo 'sha256  ${{ needs.build.outputs.digest }}  iemod-fetch.pyz'
-            echo 'gh attestation verify iemod-fetch.pyz --repo ${{ github.repository }}'
+            echo "sha256  ${DIGEST}  iemod-fetch.pyz"
+            echo "gh attestation verify iemod-fetch.pyz --repo ${REPOSITORY}"
             echo '```'
+            echo
+            echo 'The wizard without Python: `iemod-fetch-gui-<os>-<arch>.zip` (Linux, Windows),'
+            echo 'in SHA256SUMS and attested the same way; a macOS zip, with its own .sha256, is added'
+            echo 'by release-macos.yml when its runner built it. Qt inside it is LGPL-3.0: see NOTICE-Qt.txt.'
+            if ls dist/mod_installer-*-source.tar.gz > /dev/null 2>&1; then
+              echo 'The wizard carries mod_installer (GPL-3.0, by dark0dave), built unchanged from'
+              echo 'its source: `mod_installer-*-source.tar.gz`, attached here (ADR-0046).'
+            fi
+            if ls dist/iemod-fetch-cli-*.zip > /dev/null 2>&1; then
+              echo 'The command line without Python: `iemod-fetch-cli-<os>-<arch>.zip` (Linux x86_64 with'
+              echo 'Debian trixie, the minimum - started there before release - and Ubuntu 24.04, where it is built;'
+              echo 'Windows x86_64, macOS on Apple silicon), for a system whose Python is older than this release'
+              echo 'needs: Debian trixie, Ubuntu 24.04, macOS.'
+            fi
           } >> NOTES.md
 
-      - uses: softprops/action-gh-release@v2
+      # Creates tag vX.Y.Z on the planned commit if it does not exist yet, and
+      # publishes. The notes are the changelog section a reviewer already read
+      # in the release pull request.
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          tag_name: ${{ needs.decide.outputs.tag }}
+          target_commitish: ${{ needs.decide.outputs.sha }}
+          name: ${{ needs.decide.outputs.tag }}
           body_path: NOTES.md
           files: dist/*
-          draft: true          # a human reads the notes before it goes out
+          draft: false
+          make_latest: ${{ needs.decide.outputs.latest }}
+          # Optional: only a back-fill onto a commit with other workflow files
+          # needs a token with the `workflows` permission (ADR-0027). Used only
+          # then, and only when the decide job found that GitHub accepts it.
+          token: ${{ needs.decide.outputs.workflows_differ == 'true' && needs.decide.outputs.release_token == 'true' && secrets.RELEASE_TOKEN || github.token }}
           fail_on_unmatched_files: true
+
+  # The macOS bundle is built apart (release-macos.yml, ADR-0040); starting it
+  # here brings it minutes after the release instead of at the next six-hourly
+  # check. A dispatch only queues that run: nothing here waits for a macOS
+  # runner, and if it fails the schedule still attaches the bundle later.
+  macos-bundle:
+    name: Start the macOS bundle for this release
+    needs: [decide, publish-github]
+    if: needs.decide.outputs.release == 'true' && !inputs.dry_run && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write           # workflow_dispatch of release-macos.yml, nothing else
+    steps:
+      - name: Dispatch release-macos.yml for the tag
+        env:
+          TAG: ${{ needs.decide.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run release-macos.yml --repo "$REPOSITORY" --ref main -f tag="$TAG"
+
+  # The Linux bundles on the target distros (bundles-distros.yml, ADR-0056).
+  # The publish above uses github.token, and GitHub starts no workflow for
+  # an event that token made: its `release: published` would never fire.
+  # Like the macOS bundle, only queued: a distro that renamed a library
+  # does not turn the release red.
+  distros:
+    name: Start the target-distro check for this release
+    needs: [decide, publish-github]
+    if: needs.decide.outputs.release == 'true' && !inputs.dry_run && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write           # workflow_dispatch of bundles-distros.yml, nothing else
+    steps:
+      - name: Dispatch bundles-distros.yml for the tag
+        env:
+          TAG: ${{ needs.decide.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run bundles-distros.yml --repo "$REPOSITORY" --ref main -f tag="$TAG"
 
   publish-pypi:
     name: PyPI (trusted publishing)
-    needs: [build, provenance]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [decide, build, provenance]
+    # Opt-in: set the repository variable PYPI_PUBLISH=true once PyPI trusts
+    # this workflow, so an unconfigured PyPI never turns a release red.
+    if: needs.decide.outputs.release == 'true' && !inputs.dry_run && github.event_name != 'pull_request' && vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     environment: pypi          # requires a manual approval on the environment
     permissions:
       id-token: write          # OIDC — no API token stored anywhere
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: dist, path: dist }
       - name: Drop the non-Python artifacts
         run: rm -f dist/iemod-fetch.pyz dist/SHA256SUMS dist/*.sbom.json
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1

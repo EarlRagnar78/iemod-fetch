@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from iemod_fetch.weidu import parse_weidu_files, parse_weidu_log
+from iemod_fetch.weidu import log_version, parse_weidu_files, parse_weidu_log
 
 DATA = os.path.join(os.path.dirname(__file__), "data")
 
@@ -30,6 +30,30 @@ def test_spaced_colon_is_a_version():
     assert log.mods["ub"].version == "v4.2"
 
 
+# Older mods install their tp2 into the game directory, and WeiDU logs it with
+# no folder. WeiDU's own naming rule makes setup-<mod>.tp2 the mod <mod>, so
+# the folder is derived by that rule - not guessed - and the line is kept
+# verbatim for round-tripping. These lines were dropped with a warning, so the
+# mod was never planned, fetched or checked.
+@pytest.mark.parametrize("line,folder,tp2", [
+    ("~SETUP-D0QUESTPACK.TP2~ #0 #5 // Shadow Thieves: v3.5", "D0QUESTPACK",
+     "SETUP-D0QUESTPACK.TP2"),
+    ("~setup-ascension.tp2~ #0 #0 // Ascension", "ascension", "setup-ascension.tp2"),
+    ("~TOBEX.TP2~ #0 #100 // Core", "TOBEX", "TOBEX.TP2"),
+])
+def test_a_root_level_tp2_names_its_mod_by_weidus_rule(line, folder, tp2):
+    log = parse_weidu_log(line + "\n")
+    assert log.warnings == []
+    mod = log.mods[folder.lower()]
+    assert (mod.folder, mod.tp2_file) == (folder, tp2)
+    assert mod.components[0].path == line.split("~")[1]
+
+
+def test_a_bare_setup_prefix_is_still_rejected():
+    log = parse_weidu_log("~setup-.tp2~ #0 #0\n")
+    assert log.mods == {} and len(log.warnings) == 1
+
+
 def test_unparseable_lines_are_reported_not_silently_dropped():
     log = parse_weidu_log("this is not a weidu line\n~x\\x.tp2~ #0 #0\n")
     assert len(log.warnings) == 1 and "unparseable" in log.warnings[0]
@@ -44,13 +68,51 @@ def test_real_logs_parse_completely():
     assert len(log.mods) == 148
 
 
-def test_supplied_logs_record_no_versions_at_all():
+def test_supplied_logs_record_one_version():
     """
-    Honest limitation: these logs pin nothing, so this install cannot be
-    reproduced from them - only re-fetched at 'latest'.
+    These logs were written by Infinity Mod Forge, and only HPS Portraits'
+    lines end in a version (`...: 1.2`). Option texts that end the same way -
+    cdtweaks' `: 120`, `: Use BG2 values` - are not shared by every component
+    of the mod, so they are not taken for one.
     """
     log = parse_weidu_files([os.path.join(DATA, "WeiDU.log")])
-    assert [m.folder for m in log.mods.values() if m.version] == []
+    assert [(m.folder, m.version) for m in log.mods.values() if m.version] == [
+        ("HPS_PORTRAITS_PROJECT", "1.2")]
+
+
+# Lines as WeiDU 251 writes them: `Name: VERSION`, one colon, whatever its
+# header says. Checked by installing a test mod with the real WeiDU.
+def test_weidu_writes_the_version_after_a_plain_colon():
+    log = parse_weidu_log("~MYMOD/SETUP-MYMOD.TP2~ #0 #0 // Margarita for BG: EE: v1.2\n"
+                          "~MYMOD/SETUP-MYMOD.TP2~ #0 #1 // Plain: v1.2\n")
+    assert log.mods["mymod"].version == "v1.2"
+
+
+def test_a_name_with_a_colon_is_not_a_version():
+    assert log_version("Aura NPC for Baldur's Gate: Enhanced Edition") is None
+    assert log_version("Artisan's Kitpack: Adjust kit THAC0 progression to match "
+                       "tweaked THAC0 tables") is None
+    assert log_version("Kitpack: 3e-accurate Dragon Disciple -> Original Stat Bonuses") is None
+    assert log_version("UNDEFINED STRING:   @800") is None
+
+
+def test_versions_in_the_forms_mods_use():
+    assert log_version("Core Fixes: Beta 2 - Working Master") == "Beta 2 - Working Master"
+    assert log_version("EET_modConverter: beta 0.1") == "beta 0.1"
+    assert log_version("Old style : v3") == "v3"
+
+
+def test_bio_prompt_answers_after_the_version_are_not_the_version():
+    """BIO's own help: `... // EET core (resource importation): v14.0 //
+    @wlb-inputs: C:\\My Games\\BG2`."""
+    line = r"EET core (resource importation): v14.0 // @wlb-inputs: C:\My Games\BG2"
+    assert log_version(line) == "v14.0"
+    assert log_version("EET core: v14.0 // @wlb-inputs: y") == "v14.0"
+
+
+def test_a_mod_half_upgraded_has_no_single_version():
+    log = parse_weidu_log("~m/setup-m.tp2~ #0 #0 // A: v1\n~m/setup-m.tp2~ #0 #1 // B: v2\n")
+    assert log.mods["m"].version is None
 
 
 # ------------------------------------------------------------ game context

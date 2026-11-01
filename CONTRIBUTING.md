@@ -46,12 +46,19 @@ passes either way.
 | new CLI behaviour | an end-to-end test in `test_cli_end_to_end.py`, offline |
 | a design decision | an **ADR** in `docs/ADR.md`, and the code that follows from it |
 
-**No new runtime dependency.** The runtime is standard library only (ADR-0002)
-and `.importlinter` enforces it. An operator downloads one `.pyz` and runs it
-with whatever Python their game machine has. Developer tooling is free to depend
-on whatever it likes.
+**A runtime library only for a measured defect** (ADR-0043). It must fix
+something a test shows failing without it, be pure Python, have a permissive
+or file-level-copyleft licence kept unmodified, and be pinned by version and
+hash in `requirements/runtime.txt`; `build.py` carries it inside the `.pyz`,
+`tools/check_stdlib_only.py` and `.importlinter` refuse any other. Developer
+tooling is free to depend on whatever it likes.
 
-**Layering respected.** The functional core (parsers, rules, ordering,
+**The README and the CHANGELOG updated in the same pull request.** A new flag,
+output or measured number that only the code knows about does not exist for
+the people who download the `.pyz`. `CHANGELOG.md` gets an entry under
+`Unreleased`; `README.md` shows what changed for a user.
+
+**Layering respected. The functional core (parsers, rules, ordering,
 reporting) may not import the imperative shell (network, subprocess,
 filesystem). `lint-imports` will tell you before CI does.
 

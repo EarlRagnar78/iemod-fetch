@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/resolution-v1.schema.json",
+  "title": "iemod-fetch conflict resolution, version 1",
+  "description": "RESOLUTION.json next to a plan: what --decisions and --resolve-conflicts removed, moved or accepted, and what is left to you, each pointing at its conflict-report finding when it has one. iemod_fetch/resolution.py is the authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "removed",
+    "left_for_operator",
+    "moved"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "removed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "log",
+          "mod",
+          "components",
+          "because",
+          "finding_id"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string"
+          },
+          "by": {
+            "enum": [
+              "rules",
+              "decision"
+            ]
+          }
+        }
+      }
+    },
+    "left_for_operator": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "log",
+          "finding",
+          "why",
+          "finding_id"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "moved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "log",
+          "mod",
+          "components",
+          "because"
+        ]
+      }
+    },
+    "accepted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "log",
+          "finding",
+          "why",
+          "finding_id"
+        ]
+      }
+    },
+    "stale_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

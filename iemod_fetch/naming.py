@@ -56,6 +56,23 @@ def is_safe_component(name) -> bool:
         return False
 
 
+def archive_filename(remote, fallback: str) -> str:
+    """
+    Reduce a server-supplied file name to one safe path component.
+
+    The name comes from a Content-Disposition header or a URL path - remote
+    input - and is joined onto a work directory. Both separators are split on,
+    whatever the host OS, because a backslash is a separator on the machine
+    this tool actually runs on. Anything that is still not a safe component
+    (drive-relative, reserved, too long) becomes `fallback`; the archive type
+    is identified by magic bytes, so the name carries no meaning that matters.
+    """
+    if not isinstance(remote, str):
+        return fallback
+    last = remote.replace("\\", "/").rsplit("/", 1)[-1]
+    return last if is_safe_component(last) else fallback
+
+
 def normalize_key(value: str) -> str:
     """Fold a mod folder / tp2 name to its comparison key: lowercase alphanumerics."""
     return re.sub(r"[^a-z0-9]", "", (value or "").lower())
@@ -86,3 +103,21 @@ def matches_tp2(filename: str, folder: str) -> bool:
 
 def expected_tp2_names(folder: str) -> tuple:
     return (f"{folder}.tp2", f"setup-{folder}.tp2")
+
+
+# Third-party text (release notes, catalogue notes) kept as text: control
+# characters out, cut to a length (GUI-AUDIT item 51, ADR-0059)
+# with the bidirectional marks and overrides: an RLO in a note would turn
+# the lines after it around too (review of #123)
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def plain_text(value, limit: int = 1500) -> str | None:
+    """A third party's text as text: a string, its control characters (but
+    newlines and tabs) out, cut at `limit` with an ellipsis; None if empty."""
+    if not isinstance(value, str):
+        return None
+    text = _CONTROL.sub("", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+    if len(text) > limit:
+        text = text[:limit].rstrip() + " ..."
+    return text or None

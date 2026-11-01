@@ -17,10 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
       - run: pip install -e ".[test,mutation]"
 
       # Coverage says a line ran. Mutation testing says the tests would have
@@ -32,7 +36,7 @@ jobs:
         run: |
           mutmut run --paths-to-mutate iemod_fetch/ || true
           mutmut results > mutants.txt || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: mutation-report, path: mutants.txt, retention-days: 30 }
 
   deep-properties:
@@ -40,10 +44,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
       - run: pip install -e ".[test]"
 
       # The pull-request run uses 300 examples so it stays fast. Overnight it
@@ -53,39 +61,5 @@ jobs:
           HYPOTHESIS_PROFILE: nightly
         run: python -m pytest tests/test_properties.py -q
 
-  rule-data-drift:
-    name: Upstream rule data still parses
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install -e ".[test]"
-
-      # The rule databases are other people's repositories and they change under
-      # us. This is not a test of their content — it is notice that a schema
-      # change has broken the reader, before an operator finds out mid-install.
-      - name: Clone the upstream catalogues
-        run: |
-          git clone --depth 1 https://github.com/Selphira/BigWorldSetup-Next-Generation.git bws
-          git clone --depth 1 https://github.com/krion64/krion64.github.io.git krion
-      - name: Parse them and report the counts
-        run: |
-          python - <<'PY'
-          from iemod_fetch.ordering import OrderIndex
-          from iemod_fetch.rules import RuleSet
-          bws = RuleSet.load(["bws/data/rules"])
-          krion = RuleSet.load(["krion/data/mods"])
-          index = OrderIndex.load("krion")
-          print(f"BWS-NG   : {len(bws)} rules, {len(bws.warnings)} warnings")
-          print(f"krion64  : {len(krion)} rules, {len(krion.notes)} known issues, "
-                f"{len(krion.warnings)} warnings")
-          print(f"ordering : {len(index)} mods, {len(index.categories)} categories, "
-                f"{len(index.warnings)} warnings")
-          # A total collapse means the upstream schema moved, not that everyone
-          # deleted their rules. Thresholds are floors, not expectations.
-          assert len(bws) > 400, "BWS-NG rule count collapsed - schema change?"
-          assert len(krion) > 300, "krion64 rule count collapsed - schema change?"
-          assert len(index) > 500, "krion64 ordering index collapsed - schema change?"
-          PY
+  # The upstream data check moved to community-data.yml, which refreshes it
+  # the way a run does (ADR-0032) instead of cloning it.

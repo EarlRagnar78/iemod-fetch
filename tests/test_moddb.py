@@ -60,3 +60,19 @@ def test_a_single_file_can_be_loaded(tmp_path):
     path = tmp_path / "one.json"
     path.write_text(json.dumps(RECORD))
     assert len(ModDatabase.load(str(path))) == 1
+
+
+def test_krion64_notes_are_read_as_text_and_in_rec_left_out(tmp_path):
+    """GUI-AUDIT item 51: no, rq, ic and eet_compat; `in` (17 of 814 records)
+    and `rec` (10) are left out."""
+    import json
+    record = {"t": "bg1ub", "ord": 40, "n": "BG1UB", "v": "v17.1",
+              "no": "Restores cut content.\x07", "rq": "Install on BG1",
+              "ic": "NTotSC [30:Nim]", "eet_compat": {"ver": "v14", "place": "pre"},
+              "in": "something", "rec": "something else"}
+    (tmp_path / "bg1ub.json").write_text(json.dumps(record))
+    db = ModDatabase.load(str(tmp_path))
+    assert db.get("bg1ub").notes == [("Notes", "Restores cut content."),
+                                     ("Requires", "Install on BG1"),
+                                     ("Incompatible with", "NTotSC [30:Nim]"),
+                                     ("EET", "v14, pre")]

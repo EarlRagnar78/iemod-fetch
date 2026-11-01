@@ -17,6 +17,13 @@ import pytest
 
 from conftest import FakeResponse, json_response
 
+# The legacy script never closes the HTTPError it catches. That leak is one of
+# its defects, not a fault in these tests, and Python 3.14 reports it as an
+# unraisable ResourceWarning. The script is kept verbatim (ADR-0001), so the
+# warning is accepted here - and only here.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore::pytest.PytestUnraisableExceptionWarning")
+
 
 @pytest.fixture
 def legacy(monkeypatch):
@@ -150,8 +157,18 @@ def test_L8_html_error_page_is_accepted_as_a_valid_archive(legacy, tmp_path,
 
 
 # ------------------------------------------------------------ archive safety
-def test_L9_tar_extraction_escapes_the_destination_directory(legacy, tmp_path):
-    """extract_archive calls tarfile.extractall() with no member validation."""
+def test_L9_tar_extraction_escapes_the_destination_directory(legacy, tmp_path,
+                                                            monkeypatch):
+    """extract_archive calls tarfile.extractall() with no member validation.
+
+    Python 3.12+ warns when no extraction filter is chosen (an error under
+    `-W error`) and 3.14 filters by default, so the legacy script only "works"
+    on newer interpreters by accident. Pin the behaviour it was written against
+    - a fully trusting filter - so the defect stays reproducible everywhere.
+    """
+    if hasattr(tarfile, "fully_trusted_filter"):
+        monkeypatch.setattr(tarfile.TarFile, "extraction_filter",
+                            staticmethod(tarfile.fully_trusted_filter), raising=False)
     outside = tmp_path / "outside.txt"
     arc = tmp_path / "evil.tar.gz"
 

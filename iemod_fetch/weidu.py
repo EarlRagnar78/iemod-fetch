@@ -7,7 +7,6 @@ a catalogue of where to obtain them.
 """
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 # Game identifiers as used by the LCC catalogue's `games` field.
 KNOWN_GAMES = ("BG", "Tutu", "BG2", "BGT", "BGEE", "SoD", "BG2EE", "EET",
@@ -46,7 +45,7 @@ class Component:
     language: int
     index: int
     comment: str = ""
-    version: Optional[str] = None
+    version: str | None = None     # a suffix shaped like a version (log_version)
     path: str = ""       # tp2 path exactly as the log spelled it, for round-tripping
     line: int = 0        # 1-based line in the log: the true install order
 
@@ -55,9 +54,9 @@ class Component:
 class InstalledMod:
     folder: str                       # exact on-disk directory name WeiDU expects
     tp2_file: str
-    game: Optional[str] = None        # which install this log describes
-    components: List[Component] = field(default_factory=list)
-    version: Optional[str] = None     # only if the log actually recorded one
+    game: str | None = None        # which install this log describes
+    components: list[Component] = field(default_factory=list)
+    version: str | None = None     # only if the log actually recorded one
 
     @property
     def key(self) -> str:
@@ -66,13 +65,13 @@ class InstalledMod:
 
 @dataclass
 class ParsedLog:
-    mods: Dict[str, InstalledMod] = field(default_factory=dict)
-    order: List[str] = field(default_factory=list)   # install order, oldest first
-    warnings: List[str] = field(default_factory=list)
+    mods: dict[str, InstalledMod] = field(default_factory=dict)
+    order: list[str] = field(default_factory=list)   # install order, oldest first
+    warnings: list[str] = field(default_factory=list)
     component_count: int = 0
-    game: Optional[str] = None
+    game: str | None = None
 
-    def detect_game(self) -> Optional[str]:
+    def detect_game(self) -> str | None:
         """
         Infer which game this log describes from the mods it installs.
 
@@ -84,6 +83,41 @@ class ParsedLog:
         if "eet" in self.mods:
             return "EET"
         return None
+
+
+def _mod_from_root_tp2(tp2_file: str) -> str:
+    """The mod a root-level tp2 belongs to, by WeiDU's naming rule; '' if none."""
+    if not tp2_file.lower().endswith(".tp2"):
+        return ""
+    stem = tp2_file[:-4]
+    return stem[6:] if stem.lower().startswith("setup-") else stem
+
+
+_DIGIT = re.compile(r"\d")
+
+
+def log_version(comment: str) -> str | None:
+    """
+    The version at the end of a WeiDU.log comment, or None.
+
+    WeiDU 251 writes `Name: VERSION` - one colon, no space before it, whatever
+    its own header says (`[ : Version]`) - so `Margarita for BG: EE` and
+    `Artisan's Kitpack: Adjust kit THAC0 ...` end the same way a version does.
+    What follows the last ': ' is a version only if it looks like one: it has a
+    digit, is not a `Group -> Name`, not an unresolved `@N`, and is at most four
+    words (`Beta 2 - Working Master`). A trailing `// @wlb-inputs: ...` (BIO's
+    recorded prompt answers) is not part of the name. Measured on 1,533 component lines of 103
+    mods against their tp2 VERSION: no wrong version, none missed
+    (docs/TESTING.md).
+    """
+    comment = comment.split(" // @", 1)[0]     # BIO's `// @wlb-inputs: ...` tag
+    if ": " not in comment:
+        return None
+    suffix = comment.rsplit(": ", 1)[1].strip()
+    if (not suffix or not _DIGIT.search(suffix) or "->" in suffix
+            or suffix.startswith("@") or len([w for w in suffix.split() if w.strip("-")]) > 4):
+        return None
+    return suffix
 
 
 def parse_weidu_log(text: str, source: str = "<weidu.log>") -> ParsedLog:
@@ -99,19 +133,18 @@ def parse_weidu_log(text: str, source: str = "<weidu.log>") -> ParsedLog:
             continue
 
         parts = [p for p in m.group("path").replace("\\", "/").split("/") if p]
-        if len(parts) < 2:
+        if len(parts) == 1:
+            # An older mod whose tp2 sits in the game directory. WeiDU itself
+            # names the mod after the tp2: setup-<mod>.tp2 or <mod>.tp2.
+            parts = [_mod_from_root_tp2(parts[0]), parts[0]]
+        if len(parts) < 2 or not parts[0]:
             out.warnings.append(
                 f"{source}:{lineno}: tp2 not inside a mod folder: {m.group('path')!r}")
             continue
         folder, tp2_file = parts[0], parts[-1]
         comment = (m.group("comment") or "").strip()
 
-        # WeiDU writes '// Name : Version'. Only ' : ' (spaced) delimits a
-        # version; 'Option: X' and 'Margarita for BG: EE' must not be mistaken
-        # for one. In the supplied logs NO line carries a version.
-        version = None
-        if " : " in comment:
-            version = comment.rsplit(" : ", 1)[1].strip() or None
+        version = log_version(comment)
 
         comp = Component(folder, tp2_file, int(m.group("lang")),
                          int(m.group("comp")), comment, version,
@@ -124,8 +157,11 @@ def parse_weidu_log(text: str, source: str = "<weidu.log>") -> ParsedLog:
             out.order.append(key)
         mod = out.mods[key]
         mod.components.append(comp)
-        if version and not mod.version:
-            mod.version = version
+    for mod in out.mods.values():
+        # A tp2's VERSION is on every one of its components: a suffix they do
+        # not all share is part of a name, or the mod is half upgraded.
+        versions = {c.version for c in mod.components}
+        mod.version = versions.pop() if len(versions) == 1 else None
     return out
 
 
@@ -140,7 +176,7 @@ def parse_weidu_files(paths) -> ParsedLog:
     merged = ParsedLog()
     for entry in paths:
         path, game = entry if isinstance(entry, (tuple, list)) else (entry, None)
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             parsed = parse_weidu_log(fh.read(), source=str(path))
         parsed.game = game or parsed.detect_game()
         for mod in parsed.mods.values():

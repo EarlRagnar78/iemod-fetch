@@ -25,7 +25,6 @@ import os
 import re
 import zipfile
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 _SECTION = re.compile(r"^\s*\[(?P<name>[^\]]+)\]\s*$")
 _ENTRY = re.compile(r"^\s*(?P<key>\w+)\s*=\s*(?P<value>.*?)\s*$")
@@ -36,21 +35,21 @@ _MAX_INI_BYTES = 1024 * 1024
 @dataclass
 class ModMetadata:
     source: str = "<ini>"
-    name: Optional[str] = None
-    author: Optional[str] = None
-    version: Optional[str] = None
-    type: Optional[str] = None
-    homepage: Optional[str] = None
-    forum: Optional[str] = None
-    download: Optional[str] = None
-    readme: Optional[str] = None
-    label_type: Optional[str] = None
-    before: List[str] = field(default_factory=list)
-    after: List[str] = field(default_factory=list)
+    name: str | None = None
+    author: str | None = None
+    version: str | None = None
+    type: str | None = None
+    homepage: str | None = None
+    forum: str | None = None
+    download: str | None = None
+    readme: str | None = None
+    label_type: str | None = None
+    before: list[str] = field(default_factory=list)
+    after: list[str] = field(default_factory=list)
     raw: dict = field(default_factory=dict)
 
     @property
-    def urls(self) -> List[str]:
+    def urls(self) -> list[str]:
         return [u for u in (self.download, self.homepage, self.forum) if u]
 
     @property
@@ -58,7 +57,7 @@ class ModMetadata:
         return bool(self.before or self.after)
 
 
-def _split_tp2_list(value: str) -> List[str]:
+def _split_tp2_list(value: str) -> list[str]:
     """`Before = eet_end, cdtweaks` -> ['eet_end', 'cdtweaks'] (lower-cased)."""
     return [part.replace(" ", "").replace("\r", "").lower()
             for part in (value or "").split(",")
@@ -102,17 +101,17 @@ def parse_metadata_ini(content: str, source: str = "<ini>") -> ModMetadata:
     return meta
 
 
-def read_metadata_file(path: str) -> Optional[ModMetadata]:
+def read_metadata_file(path: str) -> ModMetadata | None:
     try:
         if os.path.getsize(path) > _MAX_INI_BYTES:
             return None
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             return parse_metadata_ini(fh.read(), source=path)
     except OSError:
         return None
 
 
-def find_metadata(mod_dir: str, folder: Optional[str] = None) -> Optional[ModMetadata]:
+def find_metadata(mod_dir: str, folder: str | None = None) -> ModMetadata | None:
     """
     Find a mod's metadata ini in an installed mod directory.
 
@@ -133,7 +132,7 @@ def find_metadata(mod_dir: str, folder: Optional[str] = None) -> Optional[ModMet
     return None
 
 
-def read_iemod_metadata(archive_path: str) -> Optional[ModMetadata]:
+def read_iemod_metadata(archive_path: str) -> ModMetadata | None:
     """
     Read the metadata ini out of an .iemod without extracting it.
 

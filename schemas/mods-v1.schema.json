@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/mods-v1.schema.json",
+  "title": "iemod-fetch available mods, version 1",
+  "description": "Output of --list-mods: one entry per mod any given source knows (manifest, catalogues, mod database), with each source's facts and, given --releases and a WeiDU.log, whether a newer version exists. iemod_fetch/available.py is the authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mods"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "mods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "tp2", "name", "in_manifest", "games", "categories",
+                     "status", "safe", "last_update", "version", "blocking",
+                     "advisories", "sources"],
+        "properties": {
+          "key": {"type": "string", "pattern": "^[a-z0-9]*$"},
+          "tp2": {"type": "string"},
+          "name": {"type": "string"},
+          "in_manifest": {"type": "boolean"},
+          "games": {"type": "array", "items": {"type": "string"}},
+          "categories": {"type": "array", "items": {"type": "string"}},
+          "status": {"type": "array", "items": {"type": "string"}},
+          "safe": {"type": ["integer", "null"], "minimum": 0, "maximum": 2},
+          "last_update": {"type": ["string", "null"]},
+          "version": {"type": ["string", "null"]},
+          "blocking": {"type": "boolean"},
+          "advisories": {"type": "array", "items": {"type": "string"}},
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["origin"],
+              "properties": {
+                "origin": {"type": "string"},
+                "url": {"type": "string"},
+                "urls": {"type": "array", "items": {"type": "string"}},
+                "github": {"type": "string"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "release_tag": {"type": "string"},
+                "version": {"type": "string"}
+              }
+            }
+          },
+          "kinds": {"type": "array", "items": {"type": "string"},
+                    "description": "every kind any source gives (iemod_fetch/kinds.py); absent before M5 item 26"},
+          "kinds_by_source": {"type": "object",
+                              "additionalProperties": {"type": "array", "items": {"type": "string"}},
+                              "description": "what each source says the mod is: lcc-docs' and BWS-NG's categories as kinds"},
+          "kind_disagreement": {"type": "boolean",
+                                "description": "two sources both classify the mod with no kind in common; shown, never settled"},
+          "install_category": {"type": ["string", "null"],
+                               "description": "krion64's install category, beside the kinds, never mapped into one"},
+          "tags": {"type": "array", "items": {"type": "string"}, "description": "krion64's tags"},
+          "installed": {"type": ["string", "null"],
+                        "description": "the version the given WeiDU.log records; null without one"},
+          "latest": {
+            "description": "the newest version any source names (iemod_fetch/freshness.py); null when none names one",
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["version", "origin"],
+            "properties": {
+              "version": {"type": "string"},
+              "origin": {"type": "string", "description": "'github release', or the mod database that names it"},
+              "date": {"type": "string"},
+              "url": {"type": "string"}
+            }
+          },
+          "update_available": {"type": ["boolean", "null"],
+                               "description": "null when installed or latest is unknown, or the two cannot be ranked"}
+        }
+      }
+    }
+  }
+}

@@ -4,8 +4,8 @@ import os
 import pytest
 
 from iemod_fetch.errors import UnsafeName
-from iemod_fetch.naming import (is_safe_component, matches_tp2, normalize_key,
-                                safe_component)
+from iemod_fetch.naming import (archive_filename, is_safe_component, matches_tp2,
+                                normalize_key, safe_component)
 
 DATA = os.path.join(os.path.dirname(__file__), "data")
 
@@ -33,7 +33,8 @@ def test_traversal_cannot_reach_outside_a_root():
     root = "/srv/game/Mods"
     for evil in ("../victim", "..", "a/../../b"):
         assert not is_safe_component(evil)
-    assert os.path.join(root, safe_component("DlcMerger")) == "/srv/game/Mods/DlcMerger"
+    joined = os.path.join(root, safe_component("DlcMerger"))
+    assert os.path.dirname(joined) == root           # one level down, whatever os.sep is
 
 
 # ----------------------------------------------------------- strict matching
@@ -76,3 +77,30 @@ def test_strict_matcher_accepts_every_pair_in_the_real_weidu_logs():
     unmatched = [(m.folder, m.tp2_file) for m in parsed.mods.values()
                  if not matches_tp2(m.tp2_file, m.folder)]
     assert unmatched == []
+
+
+# ------------------------------------------------- server-supplied filenames
+# The archive name comes from a Content-Disposition header or a URL path: remote
+# input. posixpath.basename does not split on backslashes, so on Windows
+# '..\\..\\evil.zip' or 'C:\\x.zip' joined onto the work directory escaped it.
+@pytest.mark.parametrize("remote,expected", [
+    ("EET-13.4.zip", "EET-13.4.zip"),
+    (r"..\..\evil.zip", "evil.zip"),
+    ("../../evil.zip", "evil.zip"),
+    (r"C:\Windows\x.zip", "x.zip"),
+    ("C:x.zip", "fallback.bin"),
+    ("feature/x.zip", "x.zip"),
+    ("..", "fallback.bin"),
+    ("", "fallback.bin"),
+    (None, "fallback.bin"),
+    ("NUL.zip", "fallback.bin"),
+    ("x" * 300 + ".zip", "fallback.bin"),
+])
+def test_a_remote_archive_name_becomes_one_safe_component(remote, expected):
+    assert archive_filename(remote, "fallback.bin") == expected
+
+
+def test_a_remote_archive_name_never_leaves_the_work_directory(tmp_path):
+    for remote in (r"..\..\evil.zip", "/etc/passwd", r"\\server\share\x.zip"):
+        joined = os.path.join(str(tmp_path), archive_filename(remote, "f.bin"))
+        assert os.path.dirname(os.path.abspath(joined)) == str(tmp_path)

@@ -1,0 +1,12 @@
+// Log of Currently Installed WeiDU Mods
+// The top of the file is the 'oldest' mod
+// Format: ~TP2_Path~ #lang #comp // Name : Version
+~EET_end\EET_end.tp2~ #0 #0 // Standard installation
+~eet\EET.tp2~ #0 #0 // EET core (resource importation)
+~eefixpack\setup-eefixpack.tp2~ #0 #0 // Core Fixes
+~stratagems\setup-stratagems.tp2~ #0 #5900 // Ascension battles
+~ascension\Ascension.tp2~ #0 #0 // Ascension core
+~ub\setup-ub.tp2~ #0 #0 // Unfinished Business core
+~cdtweaks\setup-cdtweaks.tp2~ #0 #2370 // Tweak
+~stratagems\setup-stratagems.tp2~ #0 #4100 // SCS component that forbids Tweaks #2370
+~cdtweaks\setup-cdtweaks.tp2~ #0 #4010 // BG2-only tweak

@@ -1,0 +1,86 @@
+# Where the mods of a real selection are found, measured against the real
+# network (ADR-0039). The development sandbox cannot: its proxy refuses
+# third-party repositories and the mod sites. On the supplied 145-mod EET log:
+# a dry run with the community catalogue only (what the wizard does with no
+# manifest) and one with the manifest, then a real download of 20 mods the
+# catalogue found - every one, run by hand with real=all - so the tp2 check of
+# their archives is measured too. Gibberlings3, SHS and Nexus answer the
+# runners with Cloudflare's 403: tools/measure_workstation.py measures the same
+# from a home connection (GUI-AUDIT M7 item 57).
+# Informational: the numbers go to the job summary and an artifact; only a
+# crash fails it.
+name: Download sources
+
+on:
+  pull_request:
+    paths: ["tools/download_measure.py", "tools/landing_probe.py",
+            "iemod_fetch/resolvers.py", ".github/workflows/download-sources.yml"]
+  schedule:
+    - cron: "29 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      real:
+        description: "Mods to download for real: a number, or all"
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Resolve and download from the real sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      IEMOD_DATA_DIR: iemod-data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: pip install --require-hashes -r requirements/runtime.txt
+      - name: Community data
+        run: python -m iemod_fetch --update-data --no-gh-cli --no-git-credential
+      - name: Dry run, catalogue only and with the manifest
+        run: |
+          common="-w tests/data/WeiDU.log --dry-run --no-discovery --no-update-data --no-gh-cli --no-git-credential -q"
+          python -m iemod_fetch $common -m '' -t mods-a --json-report dry-catalogue.json || true
+          python -m iemod_fetch $common -m tests/data/mod_downloads.json -t mods-b \
+            --json-report dry-manifest.json || true
+      - name: Real download of the mods the catalogue found (20, or the input)
+        env:
+          REAL: ${{ inputs.real || '20' }}
+        run: |
+          if ! printf '%s' "$REAL" | grep -Eqx '[1-9][0-9]*|all'; then
+            echo "::error::real is a positive number or all"; exit 1
+          fi
+          mapfile -t picks < <(python tools/download_measure.py dry-catalogue.json --pick "$REAL")
+          if [ "${#picks[@]}" -eq 0 ]; then
+            echo "::warning::the dry run planned no mod: nothing to download"; exit 0
+          fi
+          only=()
+          for folder in "${picks[@]}"; do only+=(--only "$folder"); done
+          python -m iemod_fetch -w tests/data/WeiDU.log -m '' -t mods-real "${only[@]}" \
+            --no-discovery --no-update-data --no-gh-cli --no-git-credential -q \
+            --max-bytes 314572800 --json-report real.json || true
+      - name: What the landing pages give (diagnosis)
+        run: |
+          python tools/landing_probe.py \
+            https://downloads.weaselmods.net/download/alabaster-sands/ \
+            https://downloads.weaselmods.net/download/the-bloodied-stings-of-barovia/ \
+            "https://www.weaselmods.net/forumdisplay.php?fid=5" \
+            https://www.gibberlings3.net/files/file/702-a-mod-for-the-orderly/ || true
+      - name: Summary
+        run: |
+          real=()
+          if [ -f real.json ]; then real=(--real real.json); fi
+          python tools/download_measure.py dry-catalogue.json dry-manifest.json \
+            "${real[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: download-sources
+          path: "*.json"
+          retention-days: 30

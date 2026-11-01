@@ -1,0 +1,104 @@
+# Which open-source extractor opens the catalogue's RAR archives (GUI-AUDIT M6
+# item 40), measured on the real archives against the official 7-Zip.
+#
+# The floor is Debian trixie: its own libarchive-tools (bsdtar), unar and
+# 7zip (the "dfsg" build, which Debian ships without the unRAR-licensed code)
+# are measured inside debian:trixie. The reference, 7-Zip 26.00 from its
+# authors, is pinned by hash and used only to say what a correct extraction
+# is - nothing here ships it. Windows' own tar.exe (libarchive) and macOS'
+# bsdtar and Homebrew's unar are measured against the same reference.
+name: RAR extractors
+
+on:
+  pull_request:
+    paths: ["tools/rar_measure.py", ".github/workflows/rar-measure.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SEVEN_ZIP_URL: https://github.com/ip7z/7zip/releases/download/26.00/7z2600-linux-x64.tar.xz
+  SEVEN_ZIP_SHA256: c74dc4a48492cde43f5fec10d53fb2a66f520e4a62a69d630c44cb22c477edc6
+  MODS_JSON: https://raw.githubusercontent.com/RiwsPy/lcc-docs/main/db/mods.json
+
+jobs:
+  trixie:
+    name: Debian trixie (the floor) - the reference, bsdtar, unar, 7zip (dfsg)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Measure inside debian:trixie
+        run: |
+          image=""
+          for candidate in debian:trixie public.ecr.aws/docker/library/debian:trixie; do
+            if docker pull -q "$candidate"; then image="$candidate"; break; fi
+          done
+          test -n "$image" || { echo "::error::no registry gave debian:trixie"; exit 1; }
+          docker run --rm -v "$PWD:/w" -w /w \
+            -e SEVEN_ZIP_URL -e SEVEN_ZIP_SHA256 -e MODS_JSON "$image" sh -euc '
+              apt-get update -q >/dev/null
+              apt-get install -y -q --no-install-recommends \
+                python3 ca-certificates curl xz-utils libarchive-tools unar 7zip >/dev/null
+              { echo "Debian $(cat /etc/debian_version)"; bsdtar --version; unar -v; \
+                dpkg-query -W libarchive-tools unar 7zip; } > out-versions.txt
+              curl -sSLf -o 7z.tar.xz "$SEVEN_ZIP_URL"
+              echo "$SEVEN_ZIP_SHA256  7z.tar.xz" | sha256sum -c -
+              mkdir ref7z && tar -xJf 7z.tar.xz -C ref7z 7zz
+              curl -sSLf -o mods.json "$MODS_JSON"
+              python3 tools/rar_measure.py corpus --mods mods.json --dir rars
+              python3 tools/rar_measure.py reference --dir rars --seven-zip ref7z/7zz --json out-ref.json
+              python3 tools/rar_measure.py compare --dir rars --ref out-ref.json \
+                --tool "bsdtar=bsdtar -xf {archive}" \
+                --tool "unar=unar -q -f -D {archive}" \
+                --tool "7zip-dfsg=7z x -y {archive}" \
+                --json out-trixie.json --summary out-summary.md --platform "Debian trixie"
+              cp rars/index.json out-index.json'
+          { cat out-summary.md; echo; echo '```'; cat out-versions.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rar-trixie
+          path: out-*
+
+  others:
+    name: ${{ matrix.os }} - the system's own extractors
+    needs: trixie
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            tool1: "tar.exe=C:/Windows/System32/tar.exe -xf {archive}"
+            tool2: ""
+          - os: macos-latest
+            tool1: "bsdtar=/usr/bin/bsdtar -xf {archive}"
+            tool2: "unar=unar -q -f -D {archive}"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { name: rar-trixie }
+      - if: runner.os == 'macOS'
+        run: brew install unar && unar -v && /usr/bin/bsdtar --version
+      - shell: bash
+        env:
+          TOOL1: ${{ matrix.tool1 }}
+          TOOL2: ${{ matrix.tool2 }}
+          PLATFORM: ${{ matrix.os }}
+        run: |
+          curl -sSLf -o mods.json "$MODS_JSON"
+          python tools/rar_measure.py corpus --mods mods.json --dir rars --index out-index.json
+          tools=(--tool "$TOOL1")
+          if [ -n "$TOOL2" ]; then tools+=(--tool "$TOOL2"); fi
+          python tools/rar_measure.py compare --dir rars --ref out-ref.json "${tools[@]}" \
+            --json "out-$PLATFORM.json" --summary "$GITHUB_STEP_SUMMARY" --platform "$PLATFORM"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rar-${{ matrix.os }}
+          path: out-${{ matrix.os }}.json

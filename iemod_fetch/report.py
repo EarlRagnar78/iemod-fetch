@@ -5,7 +5,9 @@ import os
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from typing import List, Optional
+
+from .atomic import write_text
+from .contract import SCHEMA_VERSION
 
 
 class Status(enum.Enum):
@@ -15,6 +17,7 @@ class Status(enum.Enum):
     MANUAL = "manual"         # needs a human: no source, or off-site only
     CONFLICT = "conflict"     # destination exists, --force not given
     FAILED = "failed"         # download / extraction / verification error
+    CANCELLED = "cancelled"   # the run was stopped before this mod finished
 
 
 TERMINAL_BAD = (Status.FAILED, Status.CONFLICT)
@@ -25,16 +28,23 @@ class Record:
     folder: str
     status: Status
     detail: str = ""
-    source_key: Optional[str] = None
-    url: Optional[str] = None
-    sha256: Optional[str] = None
-    version: Optional[str] = None
-    tp2_file: Optional[str] = None
-    advisories: List[str] = field(default_factory=list)
-    origin: Optional[str] = None
-    discovered_github: Optional[str] = None
+    source_key: str | None = None
+    url: str | None = None
+    sha256: str | None = None
+    version: str | None = None
+    tp2_file: str | None = None
+    advisories: list[str] = field(default_factory=list)
+    origin: str | None = None
+    discovered_github: str | None = None
     bytes: int = 0
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    # Why it did not succeed, as a stable code (errors.py; ADR-0030). None for
+    # ok/skipped/planned. Besides the error classes' codes: "filesystem",
+    # "internal".
+    error_code: str | None = None
+    # A newer GitHub release than the copy installed, offered for --take-newer:
+    # version, installed, repo, date, url (ADR-0039 amendment). None otherwise.
+    newer: dict | None = None
 
     def to_json(self) -> dict:
         data = asdict(self)
@@ -43,9 +53,11 @@ class Record:
 
 
 _COLOURS = {Status.OK: "32", Status.SKIPPED: "34", Status.PLANNED: "36",
-            Status.MANUAL: "33", Status.CONFLICT: "33", Status.FAILED: "31"}
+            Status.MANUAL: "33", Status.CONFLICT: "33", Status.FAILED: "31",
+            Status.CANCELLED: "35"}
 _GLYPHS = {Status.OK: "+", Status.SKIPPED: "-", Status.PLANNED: ".",
-           Status.MANUAL: "!", Status.CONFLICT: "!", Status.FAILED: "x"}
+           Status.MANUAL: "!", Status.CONFLICT: "!", Status.FAILED: "x",
+           Status.CANCELLED: "~"}
 
 
 def _paint(text: str, status: Status, stream) -> str:
@@ -67,11 +79,12 @@ def line_for(record: Record, stream=sys.stdout) -> str:
 @dataclass
 class RunReport:
     started_at: float = field(default_factory=time.time)
-    records: List[Record] = field(default_factory=list)
-    unresolved: List[dict] = field(default_factory=list)
-    findings: List[dict] = field(default_factory=list)   # order / compatibility
-    suggestions: List[dict] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    records: list[Record] = field(default_factory=list)
+    unresolved: list[dict] = field(default_factory=list)
+    findings: list[dict] = field(default_factory=list)   # order / compatibility
+    suggestions: list[dict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    cancelled: bool = False       # stopped on request; what finished is kept
 
     def counts(self) -> dict:
         out = {status.value: 0 for status in Status}
@@ -80,17 +93,19 @@ class RunReport:
         return out
 
     @property
-    def failed(self) -> List[Record]:
+    def failed(self) -> list[Record]:
         return [r for r in self.records if r.status in TERMINAL_BAD]
 
     @property
-    def blocking_findings(self) -> List[dict]:
+    def blocking_findings(self) -> list[dict]:
         """Errors, minus any withheld as stale or explicitly suppressed."""
         return [f for f in self.findings
                 if f.get("severity") == "error"
                 and not f.get("stale_risk") and not f.get("suppressed")]
 
     def exit_code(self, allow_manual: bool = False) -> int:
+        if self.cancelled:
+            return 130                # what an interrupted command returns
         if self.failed:
             return 1
         manual = [r for r in self.records if r.status is Status.MANUAL] or self.unresolved
@@ -100,9 +115,11 @@ class RunReport:
 
     def to_json(self) -> dict:
         return {
+            "schema_version": SCHEMA_VERSION,
             "tool": "iemod-fetch",
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.started_at)),
             "duration_seconds": round(time.time() - self.started_at, 2),
+            "cancelled": self.cancelled,
             "counts": self.counts(),
             "records": [r.to_json() for r in self.records],
             "unresolved": self.unresolved,
@@ -112,10 +129,7 @@ class RunReport:
         }
 
     def write_json(self, path: str) -> None:
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(self.to_json(), fh, indent=2)
-        os.replace(tmp, path)
+        write_text(path, json.dumps(self.to_json(), indent=2))
 
 
 def render_summary(report: RunReport, target_dir: str, stream=sys.stdout) -> None:

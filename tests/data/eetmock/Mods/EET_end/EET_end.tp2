@@ -1,0 +1,13 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [0, 1] only, verbatim from https://github.com/Gibberlings3/EET @ 6e51624 (EET_end/EET_end.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @910002
+SUBCOMPONENT @910000
+REQUIRE_COMPONENT ~EET/EET.tp2~ ~0~ @910001
+BEGIN @910003
+SUBCOMPONENT @910000
+REQUIRE_COMPONENT ~EET/EET.tp2~ ~0~ @910001
+REQUIRE_PREDICATE FILE_EXISTS ~%USER_DIRECTORY%/save/saves.tra~ ~~
+REQUIRE_PREDICATE FILE_EXISTS ~%USER_DIRECTORY%/save/saves.txt~ ~~
+REQUIRE_PREDICATE !FILE_CONTAINS ~override/EET.flag~ ~SAVES_UPDATED~ ~~
+REQUIRE_PREDICATE !FILE_CONTAINS ~override/EET.flag~ ~TRA_EXPORTED~ ~~

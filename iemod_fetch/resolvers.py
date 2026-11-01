@@ -10,10 +10,10 @@ human to decide, which is slower and correct.
 import fnmatch
 import posixpath
 import re
+import sys
 import urllib.parse
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
-from typing import List, Optional
 
 from .errors import InsecureURL, ModFetchError, NetworkError  # noqa: F401
 from .manifest import ModSource
@@ -24,6 +24,28 @@ from .urls import (ARCHIVE_EXT, has_archive_ext as _has_archive_ext,  # noqa: F4
                    normalize_dropbox, repo_from_url, unwrap_redirect)
 _ASSET_TIERS = ((".iemod",), (".zip",), (".tar.gz", ".tgz", ".tar.bz2", ".tar.xz"),
                 (".7z", ".rar"))
+# WeiDU's release convention: an asset prefixed with the platform its bundled
+# setup binary targets. A published convention, so it may decide; anything
+# unprefixed is platform-neutral.
+_PLATFORM_PREFIXES = {"win": ("win-", "wzp-"), "lin": ("lin-",), "mac": ("osx-", "mac-")}
+
+
+def _platform_family(platform: str) -> str:
+    if platform.startswith(("win", "cygwin", "msys")):
+        return "win"
+    if platform == "darwin":
+        return "mac"
+    return "lin"
+
+
+def _asset_platform(name: str) -> str | None:
+    lowered = name.lower()
+    for family, prefixes in _PLATFORM_PREFIXES.items():
+        if lowered.startswith(prefixes):
+            return family
+    return None
+
+
 _ARCHIVE_CT = ("application/zip", "application/x-zip", "application/octet-stream",
                "application/x-7z", "application/x-rar", "application/gzip",
                "application/x-tar", "application/x-msdownload")
@@ -33,7 +55,11 @@ _ARCHIVE_CT = ("application/zip", "application/x-zip", "application/octet-stream
 # every mod in its sidebar, the alphabetically first one would otherwise win for
 # every mod on the site.
 _MIN_LINK_SCORE = 40
-
+# A WordPress Download Manager package page (WeaselMods): the package is the
+# post, and `?wpdmdl=<post id>` on the page's own URL is its file. The button
+# that carries it is drawn by script, so the page's links never show it.
+_WPDM_PACKAGE = re.compile(r'<body[^>]*class="[^"]*\bsingle-wpdmpro\b[^"]*\bpostid-(\d+)\b',
+                           re.IGNORECASE)
 
 
 def _page_slug(url: str) -> str:
@@ -61,17 +87,20 @@ class Candidate:
     url: str
     filename: str
     origin: str                       # release-asset | source-snapshot | direct | page-link
-    version: Optional[str] = None
-    sha256: Optional[str] = None
+    version: str | None = None
+    sha256: str | None = None
     offsite: bool = False
 
 
 @dataclass
 class Resolution:
-    candidate: Optional[Candidate] = None
+    candidate: Candidate | None = None
     reason: str = ""
-    alternatives: List[Candidate] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    alternatives: list[Candidate] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    # the GitHub repository a landing page redirected to, for the caller to
+    # resolve as such (GUI-AUDIT M7 item 55)
+    github: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -83,9 +112,11 @@ class Resolution:
 class GitHubResolver:
     """Resolves a release asset via the REST API. No name guessing, no search."""
 
-    def __init__(self, client, allow_exe: bool = False):
+    def __init__(self, client, allow_exe: bool = False,
+                 platform: str | None = None):
         self.client = client
         self.allow_exe = allow_exe
+        self.platform = _platform_family(platform or sys.platform)
 
     def resolve(self, source: ModSource) -> Resolution:
         repo = source.github or repo_from_url(source.url or "")
@@ -117,8 +148,15 @@ class GitHubResolver:
                 hint = (f" - {repo} has no published release"
                         f"{' tagged ' + source.release_tag if source.release_tag else 's'}"
                         f" (or the repository was renamed)")
-            elif status in (401, 403):
-                hint = " - rate limited or credential rejected; set GH_TOKEN"
+            elif status == 401:
+                hint = " - the credential was rejected; check GH_TOKEN"
+            elif status == 403 and "rate limit" not in str(exc):
+                # The primary quota is named by net.py from its headers; a bare
+                # 403 may be GitHub's secondary limit, or a refusal - a proxy,
+                # a blocked repository - which a token does not cure
+                hint = (" - refused with no quota header: GitHub's secondary rate "
+                        "limit (wait), or a proxy or policy blocking this "
+                        "repository")
             return Resolution(reason=f"GitHub API: {exc}{hint}")
 
         version = data.get("tag_name")
@@ -142,7 +180,7 @@ class GitHubResolver:
         return res
 
     def _default_branch_snapshot(self, repo: str,
-                                source: ModSource) -> Optional[Resolution]:
+                                source: ModSource) -> Resolution | None:
         """Archive of the repository's default branch, for repos with no releases."""
         try:
             meta = self.client.get_json(f"https://api.github.com/repos/{repo}")
@@ -187,6 +225,17 @@ class GitHubResolver:
                                key=lambda a: (len(a["name"]), a["name"]))
             if not tier_hits:
                 continue
+            # A package built for this platform is exactly what was asked for;
+            # a neutral one is next best; another platform's is the last resort.
+            exact = [a for a in tier_hits if _asset_platform(a["name"]) == self.platform]
+            neutral = [a for a in tier_hits if _asset_platform(a["name"]) is None]
+            if exact or neutral:
+                tier_hits = exact or neutral
+            else:
+                res.warnings.append(
+                    f"{source.key}: every {tier[0]} asset is packaged for another "
+                    f"platform ({[a['name'] for a in tier_hits]}); the mod data is the "
+                    f"same, only the bundled setup binary differs")
             if len(tier_hits) > 1:
                 res.warnings.append(
                     f"{source.key}: release has {len(tier_hits)} {tier[0]} assets "
@@ -236,6 +285,15 @@ class _LinkExtractor(HTMLParser):
 
 
 
+def _same_page(link: str, page_url: str) -> bool:
+    """The link is the page it is on (fragment and trailing slash aside)."""
+    def key(url: str) -> tuple:
+        parts = urllib.parse.urlsplit(url)
+        return (parts.scheme.lower(), (parts.hostname or "").lower(),
+                parts.path.rstrip("/") or "/", parts.query)
+    return key(link) == key(page_url)
+
+
 class LandingPageResolver:
     """
     Scrapes a mod's landing page for its download link.
@@ -275,6 +333,12 @@ class LandingPageResolver:
                     name = self._filename(resp, final_url, source)
                     return Resolution(candidate=Candidate(final_url, name, "direct",
                                                           sha256=source.sha256))
+                led = repo_from_url(final_url) if final_url != url else None
+                if led:
+                    # baldurs-gate.de's `/download` answers 301 to the mod's
+                    # GitHub releases page: the author's repository, named by
+                    # the site, whose release the caller can take
+                    return Resolution(reason=f"{url} leads to {led} on GitHub", github=led)
                 if "text/html" not in content_type and content_type:
                     return Resolution(reason=f"unexpected Content-Type {content_type!r}")
                 body = resp.read(4 * 1024 * 1024).decode("utf-8", errors="replace")
@@ -294,6 +358,16 @@ class LandingPageResolver:
         return posixpath.basename(urllib.parse.urlparse(url).path) or f"{source.key}.zip"
 
     def _from_html(self, source, page_url, body) -> Resolution:
+        package = _WPDM_PACKAGE.search(body)
+        if package:
+            # Measured on downloads.weaselmods.net (download-sources.yml):
+            # ?wpdmdl=593 on Alabaster Sands' page answers its zip directly.
+            # Like any candidate, it is installed only if it holds the tp2.
+            base = urllib.parse.urlsplit(page_url)._replace(query="", fragment="")
+            link = f"{urllib.parse.urlunsplit(base)}?wpdmdl={package.group(1)}"
+            return Resolution(candidate=Candidate(
+                link, f"{_page_slug(page_url) or source.key}.zip", origin="page-link",
+                sha256=source.sha256))
         parser = _LinkExtractor(page_url)
         try:
             parser.feed(body)
@@ -304,6 +378,8 @@ class LandingPageResolver:
         scored = []
         for raw_link, text in parser.links:
             link = unwrap_redirect(raw_link)
+            if _same_page(link, page_url):
+                continue          # the page itself: downloading it gives the page
             score = self._score(link, text)
             if score <= 0:
                 continue

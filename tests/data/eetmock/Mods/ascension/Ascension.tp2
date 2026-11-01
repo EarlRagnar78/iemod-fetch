@@ -1,0 +1,11 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [0] only, verbatim from https://github.com/Gibberlings3/Ascension @ 990b0f4 (ascension/Ascension.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @104001 DESIGNATED 0 GROUP @101000 LABEL Ascension-RewrittenFinalChapterOfToB
+	REQUIRE_PREDICATE GAME_INCLUDES tob @101001
+	REQUIRE_PREDICATE GAME_IS ~bg2ee eet~ OR MOD_IS_INSTALLED ~setup-bg2fixpack.tp2~ ~0~ @101003
+        FORBID_COMPONENT ~setup-spell_rev.tp2~ ~0~ @101004
+        FORBID_COMPONENT ~setup-stratagems.tp2~ ~5900~ @101005
+        FORBID_COMPONENT ~setup-wheels.tp2~ ~0~ @101006
+		FORBID_COMPONENT ~iylos.tp2~ ~0~ @101007
+		FORBID_COMPONENT ~setup-spell_rev.tp2~ 0 @101008

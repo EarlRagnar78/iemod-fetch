@@ -119,3 +119,82 @@ def test_read_mod_tp2_finds_the_file_case_insensitively(tmp_path):
 def test_read_mod_tp2_returns_none_when_absent(tmp_path):
     (tmp_path / "empty").mkdir()
     assert read_mod_tp2(str(tmp_path / "empty"), "x.tp2") is None
+
+
+# ------------------------------------------- WeiDU's strings (GUI-AUDIT item 43)
+QUOTED = '''BACKUP ~mymod/backup~
+AUTHOR ~The "Quoted" Author~
+VERSION ~v2 "smart"~
+LANGUAGE ~Eng "lish"~ ~english~ ~mymod/english.tra~
+
+BEGIN ~Use "smart" AI~
+REQUIRE_PREDICATE GAME_IS ~bg2ee eet~ ~need "ee"~
+
+BEGIN ~~~~~A ~tilde~ name~~~~~
+'''
+
+
+def test_a_string_closes_on_the_mark_that_opened_it():
+    """WeiDU 251 on this tp2: --list-languages `0:Eng "lish"`, and
+    --list-components-json names `Use "smart" AI` and `A ~tilde~ name`.
+    The old regex read version `v2`, name `Use`, authors ['The', 'VERSION']."""
+    info = parse_tp2(QUOTED)
+    assert info.version == 'v2 "smart"'
+    assert info.mod_name == 'Use "smart" AI'
+    assert info.authors == ['The "Quoted" Author']
+    assert info.games == ["bg2ee", "eet"]
+    assert info.language_decls == [('Eng "lish"', "english")]
+
+
+def test_five_tildes_hold_tildes():
+    assert parse_tp2("BACKUP ~x~\nBEGIN ~~~~~A ~tilde~ name~~~~~\n").mod_name == "A ~tilde~ name"
+
+
+def test_language_inside_code_is_not_a_declaration():
+    """Measured on 119 real tp2s against WeiDU 251's --list-languages: 12 read
+    code as a language (BoneHill's `reload_array = ... LANGUAGE`, ToA's
+    `iconv_path =`) or lost SCS's bare directory `ENGLISH`; now all 119 agree."""
+    tp2 = '''BACKUP ~x~
+ACTION_IF FILE_EXISTS ~x~ BEGIN
+  LAF HANDLE_CHARSETS STR_VAR iconv_path = ~%MOD_FOLDER%~ END
+END
+LANGUAGE ~English~ ENGLISH ~x/english/setup.tra~
+LANGUAGE ~Deutsch~ german ~x/german/setup.tra~
+'''
+    info = parse_tp2(tp2)
+    assert info.language_decls == [("English", "ENGLISH"), ("Deutsch", "german")]
+    assert info.languages == ["English", "Deutsch"]
+
+
+def test_version_is_the_preamble_line_not_a_variable():
+    tp2 = 'BACKUP ~x~\nOUTER_SPRINT v ~%VERSION%~\nVERSION ~v3~\n'
+    assert parse_tp2(tp2).version == "v3"
+
+
+def test_a_one_line_preamble_keeps_version_and_language():
+    """Review of #57: anchored to the line start, both were lost. WeiDU 251
+    prints `// Comp: v1` and `0:English` for this tp2."""
+    info = parse_tp2("BACKUP ~b/backup~ AUTHOR ~me~ VERSION ~v1~ "
+                     "LANGUAGE ~English~ ~english~ ~english/a.tra~\nBEGIN ~Comp~\n")
+    assert info.version == "v1"
+    assert info.language_decls == [("English", "english")]
+
+
+def test_words_inside_a_string_are_not_keywords():
+    """Review of #57: a line of a README string starting `version`, or a
+    PRINT reading `language packs`, was taken for the keyword. WeiDU 251:
+    VERSION v2 and the one language English."""
+    tp2 = ("BACKUP ~c/backup~\nREADME ~c/readme.txt\nversion 9 notes~\nVERSION ~v2~\n"
+           "LANGUAGE ~English~ ~english~ ~english/a.tra~\n"
+           "BEGIN ~Comp~\nPRINT ~Note:\nlanguage packs are separate.~\n")
+    info = parse_tp2(tp2)
+    assert info.version == "v2"
+    assert info.language_decls == [("English", "english")]
+
+
+def test_a_comment_mark_inside_a_string_does_not_end_it():
+    """Review of #57: `~bg2ee // eet~` lost its close to the comment strip and
+    the game list ran on into the next line."""
+    info = parse_tp2("BACKUP ~x~\nREQUIRE_PREDICATE GAME_IS ~bg2ee // eet~ ~x~\n"
+                     "ACTION_IF GAME_IS ~iwdee~ BEGIN END\n")
+    assert "ACTION_IF" not in info.games and "iwdee" in info.games

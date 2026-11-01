@@ -1,0 +1,52 @@
+in_progress_words = [
+    "creating",
+    "installing",
+]
+useful_status_words = [
+    "copied",
+    "copying",
+    "creating",
+    "installed",
+    "installing",
+    "patched",
+    "patching",
+    "processed",
+    "processing",
+]
+choice_words = [
+    "choice",
+    "choose",
+    "enter",
+    "select",
+]
+choice_phrase = [
+    "[a]ccept, [r]etry, [c]ancel",
+    "[y]es or [n]o",
+    "[y]es, [n]o, [c]ancel",
+    "answer [y]es or [n]o.",
+    "do you want",
+    "enter a new",
+    "is this correct?",
+    "leave blank",
+    "please enter",
+    "please select",
+    "would you like",
+]
+completed_with_warnings = ["installed with warnings"]
+failed_with_error = [
+    "installation aborted",
+    "not installed due to errors",
+]
+finished = [
+    "process ended",
+    "successfully installed      ",
+]
+eet_auto_fill = "Enter the full path to your BG:EE+SoD installation then press Enter."
+bell_character = "\u0007"
+
+[metadata]
+mod_installer_version = "16.0.0"
+
+[metadata.created]
+secs_since_epoch = 1793523562
+nanos_since_epoch = 59345119

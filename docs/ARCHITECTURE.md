@@ -34,35 +34,43 @@ budget, and each item is there because a real failure argued for it.
 `.importlinter` is the source of truth; this is the readable version of it.
 
 ```
-                          cli
+                    cli  ·  (GUI, M3)
+                           │
+                          api                              ← the one entry point
                            │
                          runner
                            │
         ┌──────────────────┼──────────────────┐
-    resolvers          install            orgindex          ← imperative
+    resolvers    install    orgindex    datasync          ← imperative
         └──────────────────┼──────────────────┘
                           net
                            │
                 archives  ·  auth
 ─────────────────────────────────────────────────────────
                   plan  ·  report                          ← functional
+                       installer
+               resolution  ·  languages
                        conflicts
                         ordering
                          rules
-             manifest · catalogues · moddb
+        available · manifest · catalogues · moddb · selection
         weidu · tp2 · modmeta · versions
                         urls
-                       naming
+                  naming  ·  contract
                        errors
 ```
 
-Four contracts are enforced, and CI fails on a violation:
+Five contracts are enforced, and CI fails on a violation:
 
 1. **The core imports nothing from the shell.** Every module below the line is
    testable with no network, no temporary directory and no clock.
-2. **The runtime imports no third-party package** (ADR-0002).
+2. **The runtime imports no third-party package but those of
+   `requirements/runtime.txt`** (ADR-0043; publicsuffixlist and filelock today).
 3. **Nothing imports `cli`** except the entry point.
-4. **The stack above holds**, layer by layer.
+4. **The CLI decides nothing.** It may not import the planners, the runner or
+   the formats; it reaches the tool only through `api`, the same functions the
+   GUI calls (ADR-0029).
+5. **The stack above holds**, layer by layer.
 
 ## What each module is for
 
@@ -76,16 +84,28 @@ Four contracts are enforced, and CI fails on a violation:
 | `versions.py` | version parsing and comparison, returning `None` for unrankable pairs | the ordering must be a strict weak ordering or `sorted()` is undefined |
 | `weidu.py` | the WeiDU log: the statement of desired state | attacker-adjacent input; every unreadable line becomes a warning, never an exception |
 | `tp2.py` | the installed mod's own version and supported games | the mod is the authority on itself |
+| `weidu_lex.py` | WeiDU's strings and LANGUAGE declarations, for `tp2.py` and `tra.py` | a string closes on its own mark; measured against WeiDU 251 on 103 mods |
 | `modmeta.py` | `.iemod` / Project Infinity `[Metadata]` | the developer's own ordering claims outrank any third-party rule |
+| `premeta.py` | a planned mod's own metadata ini, fetched before download and cached (ADR-0037) | read as text, never executed; 1 MiB cap; a staged mod's own ini wins |
+| `sortorder.py` | Project Infinity's Sorting Order file, as order rules (ADR-0037) | sorts only what is chosen, never adds or drops |
 | `manifest.py` | the download catalogue, validated on load | "parse, don't validate": a `ModSource` cannot hold an unsafe folder name |
 | `catalogues.py`, `moddb.py` | LCC, BWS-NG and krion64 records | other people's JSON, read as data, never executed |
 | `rules.py` | order / incompatibility / dependency rules and the checker | one rule vocabulary, three upstream formats |
 | `ordering.py` | the install-order solver and the log writer | a topological sort is a function of its inputs |
 | `conflicts.py` | component-level findings with provenance and remedy | takes an `Install`, returns findings |
+| `resolution.py` | applies the remedies the rules decide to a plan (ADR-0021) | takes a plan and a report, returns what it removed and why |
+| `constraints.py` | reads each staged mod's own tp2 constraints and EET's merge check, as rules (ADR-0025) | reads tp2s; returns rules |
+| `gamedir.py` | identifies a game folder with WeiDU's GAME_IS markers and checks EET's needs (ADR-0026) | reads chitin.key; never writes |
+| `simulate.py` | walks a plan the way WeiDU runs it and lists what it would refuse (ADR-0025) | pure; no I/O |
+| `languages.py` | maps a preferred-language list onto each mod's tp2 LANGUAGE index (ADR-0024) | reads a tp2, rewrites `#lang` in the plan |
+| `installer.py` | writes the sh/cmd scripts that hand a plan to mod_installer (ADR-0022) | text generation; never executes anything |
 | `plan.py` | which manifest entry serves which WeiDU folder | matching, not fetching |
 | `report.py` | the run report and its renderers | formatting is not I/O |
 | `config.py` | the INI file and the precedence rules | |
 | `pinning.py` | turning an actual run into a pinned manifest | |
+| `selection.py` | selection.json: a choice of mods without a WeiDU.log, converted to and from one (ADR-0030) | validation only |
+| `available.py` | every mod the given sources know, merged into one entry each | a join over data already read |
+| `contract.py` | `SCHEMA_VERSION` and stable finding ids for every JSON output (ADR-0030) | a digest of what a finding is about |
 
 ### The shell
 
@@ -96,9 +116,14 @@ Four contracts are enforced, and CI fails on a violation:
 | `auth.py` | find a GitHub credential | environment, `gh`, git credential helper, device flow — never echoes a token |
 | `install.py` | stage a verified mod directory | never deletes an existing directory; `--force` moves it aside |
 | `orgindex.py` | trusted-owner repository listing | a disk cache with a TTL |
+| `etagcache.py` | GitHub API answers kept with their ETag, for If-None-Match | one file per URL, written whole, owner-only; a damaged or foreign entry is ignored |
+| `childenv.py` | the environment a program started by this one gets | inside a PyInstaller bundle on Linux and macOS, the library path from before the bundle started, so git, gh, 7-Zip and unrar load the system's libraries (Windows: GUI-AUDIT row 61) |
+| `atomic.py` | write a file whole or not at all: the state, the report, the config, the caches | a temp of its own beside the target, removed on failure; the target keeps its mode, a new file is owner-only (0600); the install state is flushed to disk |
 | `resolvers.py` | one manifest entry to one URL | refuses to guess; reports what it found instead |
-| `runner.py` | orchestration and concurrency | |
-| `cli.py` | argument parsing, config precedence, wiring | the only place that writes to a stream |
+| `datasync.py` | the community-data cache: refresh from GitHub, stand in for source flags (ADR-0032) | each file checked against its git hash; swapped in whole; paths cannot leave the cache |
+| `runner.py` | orchestration and concurrency; progress events and cancellation | a cancelled download leaves no file |
+| `api.py` | the public API: `Settings`, `run`, `list_mods`, `load_selection`, `selection_of_logs` (ADR-0029) | what a front end may rely on is `__all__`; silent unless given a stream |
+| `cli.py` | argument parsing and config precedence, then `api.run` | the only place that reads `sys.argv` |
 
 ## Things worth knowing before changing something
 

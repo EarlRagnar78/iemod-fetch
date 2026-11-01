@@ -3,13 +3,20 @@
 #
 # The shape is functional core / imperative shell (ADR-0019):
 #
-#   core     naming, errors, versions, weidu, tp2, modmeta, manifest,
-#            catalogues, moddb, rules, ordering, conflicts, plan, report,
-#            config, pinning
+#   core     naming, errors, versions, weidu, weidu_lex, tp2, modmeta, manifest,
+#            catalogues, moddb, rules, ordering, conflicts, resolution,
+#            installer, languages, plan, report,
+#            config, pinning, selection, available, contract, tra, freshness, kinds,
+#            decisions, bio, pi, limits, choices, prompts, resume, results, launch, readln
 #            -> pure. Parse, compare, decide. No sockets, no subprocesses.
-#   shell    net, auth, archives, install, orgindex, resolvers, runner, cli
+#   shell    net, etagcache, childenv, auth, archives, install, orgindex, resolvers, datasync, runner,
+#            install_run, gamelock, toolchain, api, cli
 #            -> everything that touches the network, the filesystem or a
 #               subprocess.
+#   api      what the tool does, as functions: the one thing the CLI and the
+#            GUI call (ADR-0029). The CLI only parses flags and prints.
+#   gui      iemod_fetch_gui, the PySide6 wizard (ADR-0031): imports only
+#            iemod_fetch.api; nothing in iemod_fetch imports it.
 #
 # The core is where the interesting logic lives, and it is testable with no
 # fixtures, no mocks and no clock. That property is worth defending mechanically.
@@ -17,6 +24,7 @@
 [importlinter]
 root_packages =
     iemod_fetch
+    iemod_fetch_gui
 include_external_packages = True
 
 [importlinter:contract:core-is-pure]
@@ -28,6 +36,7 @@ source_modules =
     iemod_fetch.urls
     iemod_fetch.versions
     iemod_fetch.weidu
+    iemod_fetch.weidu_lex
     iemod_fetch.tp2
     iemod_fetch.modmeta
     iemod_fetch.manifest
@@ -36,22 +45,55 @@ source_modules =
     iemod_fetch.rules
     iemod_fetch.ordering
     iemod_fetch.conflicts
+    iemod_fetch.resolution
+    iemod_fetch.languages
+    iemod_fetch.simulate
+    iemod_fetch.constraints
+    iemod_fetch.gamedir
+    iemod_fetch.backup
+    iemod_fetch.installer
     iemod_fetch.plan
     iemod_fetch.report
     iemod_fetch.config
     iemod_fetch.pinning
+    iemod_fetch.selection
+    iemod_fetch.available
+    iemod_fetch.contract
+    iemod_fetch.tra
+    iemod_fetch.readln
+    iemod_fetch.freshness
+    iemod_fetch.kinds
+    iemod_fetch.decisions
+    iemod_fetch.bio
+    iemod_fetch.pi
+    iemod_fetch.limits
+    iemod_fetch.choices
+    iemod_fetch.premeta
+    iemod_fetch.sortorder
+    iemod_fetch.prompts
+    iemod_fetch.mi_parser
+    iemod_fetch.resume
+    iemod_fetch.results
+    iemod_fetch.launch
 forbidden_modules =
     iemod_fetch.net
+    iemod_fetch.etagcache
+    iemod_fetch.childenv
     iemod_fetch.auth
     iemod_fetch.archives
     iemod_fetch.install
     iemod_fetch.orgindex
     iemod_fetch.resolvers
     iemod_fetch.runner
+    iemod_fetch.install_run
+    iemod_fetch.gamelock
+    iemod_fetch.readiness
+    iemod_fetch.toolchain
+    iemod_fetch.api
     iemod_fetch.cli
 
 [importlinter:contract:no-third-party-at-runtime]
-name = The runtime depends on the standard library only (ADR-0002)
+name = The runtime takes no library but those of requirements/runtime.txt (ADR-0043)
 type = forbidden
 source_modules =
     iemod_fetch
@@ -68,6 +110,7 @@ forbidden_modules =
     typer
     rich
     tomli
+    PySide6
 
 [importlinter:contract:cli-is-the-only-entry-point]
 name = Nothing imports the CLI except the entry point
@@ -80,24 +123,135 @@ source_modules =
     iemod_fetch.orgindex
     iemod_fetch.resolvers
     iemod_fetch.runner
+    iemod_fetch.api
+    iemod_fetch.datasync
 forbidden_modules =
     iemod_fetch.cli
 
+[importlinter:contract:cli-decides-nothing]
+name = The CLI holds no logic: it reaches the tool only through the api (ADR-0029)
+type = forbidden
+source_modules =
+    iemod_fetch.cli
+forbidden_modules =
+    iemod_fetch.runner
+    iemod_fetch.plan
+    iemod_fetch.ordering
+    iemod_fetch.conflicts
+    iemod_fetch.resolution
+    iemod_fetch.rules
+    iemod_fetch.simulate
+    iemod_fetch.installer
+    iemod_fetch.selection
+    iemod_fetch.available
+    iemod_fetch.catalogues
+    iemod_fetch.manifest
+    iemod_fetch.resolvers
+    iemod_fetch.install
+    iemod_fetch.datasync
+allow_indirect_imports = True
+
 [importlinter:contract:layers]
-name = Layered: cli over runner over resolvers/install over net/archives over core
+name = Layered: cli over api over runner over resolvers/install over net/archives over core
 type = layers
 layers =
     iemod_fetch.cli
+    iemod_fetch.api
     iemod_fetch.runner
-    iemod_fetch.resolvers | iemod_fetch.install | iemod_fetch.orgindex
+    iemod_fetch.readiness
+    iemod_fetch.resolvers | iemod_fetch.install | iemod_fetch.orgindex | iemod_fetch.datasync | iemod_fetch.install_run | iemod_fetch.toolchain
     iemod_fetch.net
-    iemod_fetch.archives | iemod_fetch.auth
-    iemod_fetch.plan | iemod_fetch.report
-    iemod_fetch.conflicts
+    iemod_fetch.archives | iemod_fetch.auth | iemod_fetch.etagcache
+    iemod_fetch.childenv | iemod_fetch.gamelock
+    iemod_fetch.plan | iemod_fetch.report | iemod_fetch.readln
+    iemod_fetch.installer | iemod_fetch.tra
+    iemod_fetch.resolution | iemod_fetch.languages
+    iemod_fetch.simulate | iemod_fetch.constraints | iemod_fetch.gamedir | iemod_fetch.backup
+    iemod_fetch.conflicts | iemod_fetch.sortorder
+    iemod_fetch.limits
     iemod_fetch.ordering
     iemod_fetch.rules
-    iemod_fetch.manifest | iemod_fetch.catalogues | iemod_fetch.moddb
+    iemod_fetch.resume | iemod_fetch.results | iemod_fetch.launch
+    iemod_fetch.available | iemod_fetch.bio | iemod_fetch.pi | iemod_fetch.choices | iemod_fetch.premeta | iemod_fetch.prompts
+    iemod_fetch.manifest | iemod_fetch.catalogues | iemod_fetch.moddb | iemod_fetch.selection | iemod_fetch.freshness | iemod_fetch.kinds | iemod_fetch.decisions
     iemod_fetch.weidu | iemod_fetch.tp2 | iemod_fetch.modmeta | iemod_fetch.versions
     iemod_fetch.urls
-    iemod_fetch.naming
+    iemod_fetch.naming | iemod_fetch.contract
     iemod_fetch.errors
+
+[importlinter:contract:gui-is-apart]
+name = The tool never imports the GUI (ADR-0031)
+type = forbidden
+source_modules =
+    iemod_fetch
+forbidden_modules =
+    iemod_fetch_gui
+
+[importlinter:contract:gui-only-through-api]
+name = The GUI reaches the tool only through the api, like the CLI (ADR-0031)
+type = forbidden
+source_modules =
+    iemod_fetch_gui
+forbidden_modules =
+    iemod_fetch.archives
+    iemod_fetch.atomic
+    iemod_fetch.auth
+    iemod_fetch.etagcache
+    iemod_fetch.childenv
+    iemod_fetch.available
+    iemod_fetch.bio
+    iemod_fetch.catalogues
+    iemod_fetch.choices
+    iemod_fetch.cli
+    iemod_fetch.config
+    iemod_fetch.conflicts
+    iemod_fetch.constraints
+    iemod_fetch.contract
+    iemod_fetch.datasync
+    iemod_fetch.decisions
+    iemod_fetch.errors
+    iemod_fetch.freshness
+    iemod_fetch.gamedir
+    iemod_fetch.backup
+    iemod_fetch.install
+    iemod_fetch.install_run
+    iemod_fetch.mi_parser
+    iemod_fetch.gamelock
+    iemod_fetch.readiness
+    iemod_fetch.toolchain
+    iemod_fetch.installer
+    iemod_fetch.kinds
+    iemod_fetch.languages
+    iemod_fetch.limits
+    iemod_fetch.manifest
+    iemod_fetch.moddb
+    iemod_fetch.modmeta
+    iemod_fetch.naming
+    iemod_fetch.net
+    iemod_fetch.ordering
+    iemod_fetch.orgindex
+    iemod_fetch.pi
+    iemod_fetch.pinning
+    iemod_fetch.premeta
+    iemod_fetch.plan
+    iemod_fetch.prompts
+    iemod_fetch.readln
+    iemod_fetch.resume
+    iemod_fetch.results
+    iemod_fetch.launch
+    iemod_fetch.report
+    iemod_fetch.resolution
+    iemod_fetch.resolvers
+    iemod_fetch.rules
+    iemod_fetch.runner
+    iemod_fetch.selection
+    iemod_fetch.simulate
+    iemod_fetch.sortorder
+    iemod_fetch.tp2
+    iemod_fetch.tra
+    iemod_fetch.urls
+    iemod_fetch.versions
+    iemod_fetch.weidu
+    iemod_fetch.weidu_lex
+# The api itself imports the rest: only the GUI's own imports are judged.
+allow_indirect_imports = True

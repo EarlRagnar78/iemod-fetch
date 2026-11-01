@@ -12,13 +12,14 @@
 - [ ] `make check` passes locally (ruff, mypy, import-linter, pytest)
 - [ ] A test fails without this change and passes with it — named here:
       `tests/...::test_...`
-- [ ] No new runtime dependency (the shipped tool is standard library only)
+- [ ] No new runtime dependency outside `requirements/runtime.txt`, and none added there without a test that fails first (ADR-0043)
 - [ ] The layering holds (`lint-imports`)
 
 ## If this touches a design decision
 
 - [ ] `docs/ADR.md` records it, or an existing ADR is amended
 - [ ] `CHANGELOG.md` has an entry under `Unreleased`
+- [ ] `README.md` describes the change (new flags, outputs, numbers)
 
 ## If this touches a security boundary
 

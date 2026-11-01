@@ -17,7 +17,6 @@ Here the three jobs are separated (ADR-0002):
 import difflib
 import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from .errors import ConfigError
 from .manifest import Manifest, ModSource
@@ -41,28 +40,28 @@ class Suggestion:
 @dataclass
 class WorkItem:
     folder: str                       # exact directory WeiDU expects on disk
-    source: Optional[ModSource]
+    source: ModSource | None
     origin: str                       # weidu | manifest
     match: str                        # exact | alias | suggested | none
     detail: str = ""
-    game: Optional[str] = None        # which install this mod belongs to
+    game: str | None = None        # which install this mod belongs to
 
 
 @dataclass
 class Plan:
-    items: List[WorkItem] = field(default_factory=list)
-    unresolved: List[WorkItem] = field(default_factory=list)
-    suggestions: List[Suggestion] = field(default_factory=list)
-    unused_sources: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    items: list[WorkItem] = field(default_factory=list)
+    unresolved: list[WorkItem] = field(default_factory=list)
+    suggestions: list[Suggestion] = field(default_factory=list)
+    unused_sources: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
-def load_aliases(path) -> Dict[str, str]:
+def load_aliases(path) -> dict[str, str]:
     """{"weidu_folder": "manifest_tp2_key"} - explicit, reviewable, in version control."""
     if not path:
         return {}
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
     except OSError as exc:
         raise ConfigError(f"cannot read alias file {path}: {exc}") from exc
@@ -83,7 +82,7 @@ def _strip_prefix(key: str) -> str:
     return key
 
 
-def suggest(folder: str, manifest: Manifest, limit: int = 3) -> List[Suggestion]:
+def suggest(folder: str, manifest: Manifest, limit: int = 3) -> list[Suggestion]:
     """Propose catalogue entries for an unmatched WeiDU folder. Never auto-applied."""
     target = normalize_key(folder)
     target_core = _strip_prefix(target)
@@ -107,7 +106,7 @@ def suggest(folder: str, manifest: Manifest, limit: int = 3) -> List[Suggestion]
 
 
 def build_plan(installed: ParsedLog, manifest: Manifest,
-               aliases: Optional[Dict[str, str]] = None,
+               aliases: dict[str, str] | None = None,
                include_manifest_only: bool = False,
                accept_suggestions: bool = False) -> Plan:
     aliases = aliases or {}

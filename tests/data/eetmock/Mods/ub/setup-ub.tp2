@@ -1,0 +1,5 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [0] only, verbatim from https://github.com/Pocket-Plane-Group/UnfinishedBusiness @ 5f421f8 (ub/setup-ub.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @0
+REQUIRE_PREDICATE GAME_INCLUDES "bg2" @102

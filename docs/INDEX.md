@@ -7,11 +7,12 @@ to change it, and `AUDIT.md` if you want to know why it exists.
 |---|---|
 | [`GUIDE.md`](GUIDE.md) | The operator runbook: install, configure, run, read the output, plan an install order, act on a conflict report |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | The functional core / imperative shell shape, the module map, and the layering contracts CI enforces |
-| [`TESTING.md`](TESTING.md) | Six testing techniques, what class of defect each exists for, and the defects each has actually found |
+| [`TESTING.md`](TESTING.md) | Seven testing techniques, what class of defect each exists for, and the defects each has actually found |
 | [`SECURITY-MODEL.md`](SECURITY-MODEL.md) | The four trust boundaries, the controls on each, and what is deliberately out of scope |
 | [`ADR.md`](ADR.md) | Architecture Decision Records 0001–0020: the decisions, their context, and their consequences |
 | [`AUDIT.md`](AUDIT.md) | What was wrong with the original script, ranked by severity, with evidence from real data |
 | [`PLAN.md`](PLAN.md) | The original three-phase delivery plan for the rewrite |
+| [`GUI-AUDIT.md`](GUI-AUDIT.md) | Can this become a complete tool with a UI: what the CLI lacks, what BIO, BWS-NG, lcc-docs, krion64 and mod_installer do, and the plan |
 | [`ROADMAP.md`](ROADMAP.md) | Where the project is now, what is next, and what is deliberately not planned |
 | [`RELEASING.md`](RELEASING.md) | How a release is cut, and what an operator can verify about a download |
 

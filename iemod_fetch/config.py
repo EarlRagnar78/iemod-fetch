@@ -13,9 +13,11 @@ definition of each default and no per-flag plumbing to drift.
 import configparser
 import os
 import re
+import io
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from .atomic import write_text
 from .errors import ConfigError
 
 SECTION = "iemod-fetch"
@@ -23,17 +25,24 @@ FILENAME = "iemod-fetch.ini"
 
 # Options that may be repeated on the command line; in the file, one per line or
 # comma-separated.
-LIST_KEYS = ("weidu_log", "catalogue", "only", "trusted_owner", "rules")
+LIST_KEYS = ("weidu_log", "catalogue", "only", "trusted_owner", "rules", "take_newer")
 BOOL_KEYS = ("dry_run", "force", "refresh", "quiet", "allow_manual", "check_only",
              "accept_suggestions", "allow_http", "allow_exe", "accept_offsite",
              "include_optional",
              "no_discovery", "no_gh_cli", "no_git_credential",
-             "all_manifest_entries")
-INT_KEYS = ("workers", "timeout", "retries", "discovery_attempts")
+             "all_manifest_entries", "resolve_conflicts", "emit_installer", "simulate",
+             "no_update_data", "no_default_data", "fetch_metadata")
+INT_KEYS = ("workers", "timeout", "retries", "discovery_attempts", "data_max_age")
 SIZE_KEYS = ("max_bytes",)
 STR_KEYS = ("manifest", "target", "aliases", "json_report", "emit_pinned_manifest",
-            "mod_db", "suppress",
-            "token_file", "oauth_client_id", "trusted_owners", "owner_cache")
+            "mod_db", "suppress", "game_language", "language_preference", "bgee_dir", "bg2ee_dir",
+            "token_file", "oauth_client_id", "trusted_owners", "owner_cache",
+            "selection", "emit_selection", "list_mods", "describe_mods", "events", "data_dir", "eet_sequence", "releases", "decisions", "bio_code", "emit_bio_code", "pi_list",
+            "sorting_order")
+
+# Files the wizard writes beside the project's ini and names in it: read
+# relative to the ini, wherever the command line is run from.
+FILE_RELATIVE_KEYS = ("sorting_order",)
 
 KNOWN_KEYS = frozenset(LIST_KEYS + BOOL_KEYS + INT_KEYS + SIZE_KEYS + STR_KEYS)
 
@@ -63,7 +72,7 @@ def parse_size(value, key: str = "value") -> int:
     return result
 
 
-def _split_list(raw: str) -> List[str]:
+def _split_list(raw: str) -> list[str]:
     parts = []
     for line in raw.splitlines():
         for raw_item in line.split(","):
@@ -78,16 +87,16 @@ class FileConfig:
     # str | int | bool | list[str], decided per key by LIST_KEYS / BOOL_KEYS /
     # INT_KEYS / SIZE_KEYS. Any, not object: `object` forces every reader to
     # cast, which is noise around a value that has already been coerced.
-    values: Dict[str, Any] = field(default_factory=dict)
-    path: Optional[str] = None
-    warnings: List[str] = field(default_factory=list)
+    values: dict[str, Any] = field(default_factory=dict)
+    path: str | None = None
+    warnings: list[str] = field(default_factory=list)
 
     def __bool__(self) -> bool:
         return bool(self.values)
 
 
-def candidate_paths(explicit: Optional[str] = None,
-                    target: Optional[str] = None) -> List[str]:
+def candidate_paths(explicit: str | None = None,
+                    target: str | None = None) -> list[str]:
     """Where a config file may live, most specific first."""
     if explicit:
         return [explicit]
@@ -102,8 +111,8 @@ def candidate_paths(explicit: Optional[str] = None,
     return paths
 
 
-def load_config(explicit: Optional[str] = None,
-                target: Optional[str] = None) -> FileConfig:
+def load_config(explicit: str | None = None,
+                target: str | None = None) -> FileConfig:
     """
     Read the first config file that exists. A missing file is not an error
     unless it was named explicitly with --config.
@@ -119,7 +128,7 @@ def load_config(explicit: Optional[str] = None,
 def _read(path: str) -> FileConfig:
     parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             parser.read_file(fh)
     except OSError as exc:
         raise ConfigError(f"cannot read config {path}: {exc}") from exc
@@ -131,7 +140,11 @@ def _read(path: str) -> FileConfig:
             f"{path}: no [{SECTION}] section; nothing was applied"])
 
     config = FileConfig(path=path)
-    for raw_key, raw_value in parser.items(SECTION):
+    try:
+        items = parser.items(SECTION)
+    except configparser.Error as exc:     # a lone % is interpolation syntax
+        raise ConfigError(f"{path}: {exc} (write a literal % as %%)") from exc
+    for raw_key, raw_value in items:
         key = raw_key.strip().replace("-", "_")
         if key not in KNOWN_KEYS:
             config.warnings.append(f"{path}: ignoring unknown option {raw_key!r}")
@@ -146,7 +159,64 @@ def _read(path: str) -> FileConfig:
             elif key in LIST_KEYS:
                 config.values[key] = _split_list(raw_value)
             else:
-                config.values[key] = raw_value.strip()
+                value = raw_value.strip()
+                if key in FILE_RELATIVE_KEYS and value and not os.path.isabs(value):
+                    value = os.path.join(os.path.dirname(os.path.abspath(path)), value)
+                config.values[key] = value
         except ValueError as exc:
             raise ConfigError(f"{path}: option {raw_key!r} = {raw_value!r}: {exc}") from exc
     return config
+
+
+def write_values(path: str, values: dict[str, Any],
+                 extra: dict[str, dict[str, str]] | None = None) -> None:
+    """
+    Set `values` in the [iemod-fetch] section of `path`, keeping every other
+    option and section; `extra` sets options of other sections (the GUI keeps
+    its own there). A value of None removes the option. Written whole and
+    swapped in, so a crash never leaves half a file. Comments are not kept:
+    configparser does not read them back.
+    """
+    unknown = sorted(set(values) - KNOWN_KEYS)
+    if unknown:
+        raise ConfigError(f"{path}: unknown option(s) {', '.join(unknown)}")
+    parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                parser.read_file(fh)
+        except (OSError, configparser.Error) as exc:
+            raise ConfigError(f"cannot update {path}: {exc}") from exc
+    for section, options in [(SECTION, values)] + sorted((extra or {}).items()):
+        if not parser.has_section(section):
+            parser.add_section(section)
+        for key, value in options.items():
+            # The reader accepts `bgee-dir` for `bgee_dir`: replace either spelling.
+            parser.remove_option(section, key.replace("_", "-"))
+            if value is None:
+                parser.remove_option(section, key)
+                continue
+            if isinstance(value, (list, tuple)):
+                text = ", ".join(str(v) for v in value)
+            elif isinstance(value, bool):
+                text = "true" if value else "false"
+            else:
+                text = str(value)
+            # Read back with interpolation: a literal % is written %% (C:/100%BG).
+            parser.set(section, key, text.replace("%", "%%"))
+    # An existing file keeps the permissions its owner gave it; a new one is
+    # readable by its owner only (it may hold a token): write_text's rule.
+    buf = io.StringIO()
+    parser.write(buf)
+    write_text(path, buf.getvalue())
+
+
+def read_section(path: str, section: str) -> dict[str, str]:
+    """The raw options of one section of `path` ({} when absent or unreadable)."""
+    parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
+    try:
+        with open(path, encoding="utf-8") as fh:
+            parser.read_file(fh)
+        return dict(parser.items(section)) if parser.has_section(section) else {}
+    except (OSError, configparser.Error):
+        return {}

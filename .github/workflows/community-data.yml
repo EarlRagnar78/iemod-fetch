@@ -1,0 +1,111 @@
+# The community data refresh, against the real GitHub (ADR-0032).
+#
+# Every other test of iemod_fetch/datasync.py uses an in-memory GitHub. This
+# runs the real thing: --update-data from nothing, then again (it must find the
+# cache current and download nothing), then parses what it fetched with the
+# floors that say "the upstream schema moved". It runs on a pull request that
+# changes the refresh, and every night, because the three repositories change
+# under us.
+name: Community data
+
+on:
+  pull_request:
+    paths: ["iemod_fetch/datasync.py", "iemod_fetch/kinds.py", "iemod_fetch/ordering.py",
+            "iemod_fetch/available.py", "iemod_fetch/catalogues.py", "iemod_fetch/moddb.py",
+            "tools/places_check.py", ".github/workflows/community-data.yml"]
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Refresh lcc-docs, BWS-NG and krion64 from GitHub, then parse them
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Raises the API limit from 60 to 1,000 requests an hour; the refresh
+      # makes two calls per repository.
+      GH_TOKEN: ${{ github.token }}
+      IEMOD_DATA_DIR: iemod-data              # inside the workspace, gone with the runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: pip install --require-hashes -r requirements/runtime.txt
+
+      - name: From nothing
+        run: |
+          python -m iemod_fetch --update-data --no-gh-cli --no-git-credential | tee first.txt
+          test "$(grep -c 'updated to' first.txt)" = 3
+
+      - name: Again - nothing changed upstream in a minute, so nothing is fetched
+        run: |
+          python -m iemod_fetch --update-data --no-gh-cli --no-git-credential | tee second.txt
+          ! grep -q 'updated to\|not refreshed' second.txt
+
+      - name: What was fetched still parses
+        run: |
+          python - <<'PY'
+          import os
+          from iemod_fetch.catalogues import CatalogueSet
+          from iemod_fetch.datasync import data_paths
+          from iemod_fetch.ordering import OrderIndex
+          from iemod_fetch.rules import RuleSet
+          paths = data_paths(os.environ["IEMOD_DATA_DIR"])
+          lcc = CatalogueSet.load([paths.catalogue])
+          bws = RuleSet.load([paths.rules[0]])
+          krion = RuleSet.load([paths.rules[1]])
+          index = OrderIndex.load(paths.order_catalogue)
+          print(f"lcc-docs : {len(lcc)} mods")
+          print(f"BWS-NG   : {len(bws)} rules, {len(bws.warnings)} warnings")
+          print(f"krion64  : {len(krion)} rules, {len(krion.notes)} known issues")
+          print(f"ordering : {len(index)} mods, {len(index.categories)} categories")
+          # The guard measured each copy before accepting it (ADR-0032).
+          from iemod_fetch.datasync import load_manifest
+          manifest = load_manifest(os.environ["IEMOD_DATA_DIR"])
+          for name, entry in sorted(manifest.items()):
+              print(f"guard    : {name} {entry['commit'][:7]} {entry['metrics']}")
+              assert entry["metrics"] and "rejected" not in entry, name
+          # Floors, not expectations: a collapse means the schema moved.
+          assert len(lcc) > 1500, "lcc-docs mod count collapsed - schema change?"
+          assert len(bws) > 400, "BWS-NG rule count collapsed - schema change?"
+          assert len(krion) > 300, "krion64 rule count collapsed - schema change?"
+          assert len(index) > 500, "krion64 ordering index collapsed - schema change?"
+          PY
+
+      - name: A run uses the cache for the flags it was not given
+        run: |
+          python -m iemod_fetch --list-mods mods.json -m absent.json --no-update-data
+          python -c "import json; n = len(json.load(open('mods.json'))['mods']); print(n, 'mods'); assert n > 1500"
+
+      # GUI-AUDIT item 70: ordering facts from Chriz Easy BG's curation notes
+      # that our data holds, as planner regression tests on what was just
+      # fetched. A rule or a place upstream drops fails here, named.
+      - name: The ordering facts still hold
+        env:
+          GH_TOKEN: ""              # reads the cache only
+          IEMOD_FACTS_DATA: iemod-data      # the IEMOD_DATA_DIR above
+        run: |
+          pip install -e ".[test]"
+          python -m pytest -q tests/test_ordering_facts.py
+
+      # GUI-AUDIT item 29: the kinds and the places on the live data. A new
+      # category in lcc-docs or BWS-NG, a krion64 category a kind places into
+      # renamed, a games/eet.json whose shape moved, or a count that
+      # collapsed fails here - not in a player's run, where it would place
+      # nothing. The summary is written on the night it fails too.
+      - name: The kinds and the places still hold
+        env:
+          GH_TOKEN: ""              # reads the cache only
+        run: |
+          rc=0
+          python tools/places_check.py "$IEMOD_DATA_DIR" --log tests/data/WeiDU.log \
+            --json places.json --summary places.md \
+            --min-kinds 1500 --min-by-kind 300 --min-by-sequence 1 || rc=$?
+          if [ -f places.md ]; then cat places.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$rc"

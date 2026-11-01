@@ -4,15 +4,22 @@ Build a single-file executable `iemod-fetch.pyz`.
 
 Restores the original script's best property - copy one file next to the game
 install and run it - without giving up a testable package layout (ADR-0001).
-The archive is pure Python with no dependencies, so it runs on any CPython 3.9+.
+The archive is pure Python; it carries the runtime's libraries
+(requirements/runtime.txt, ADR-0043) - copied from the installed, hash-checked
+distributions, so the build itself needs no network - and runs on the CPython
+of .python-version (3.14), telling an older one so.
 
     python3 build.py                    # -> ./iemod-fetch.pyz
     python3 build.py -o /tmp/foo.pyz    # elsewhere
     ./iemod-fetch.pyz --help            # on POSIX; `py iemod-fetch.pyz` on Windows
 """
 import argparse
+import base64
 import compileall
+import hashlib
+import importlib.metadata
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -51,6 +58,57 @@ def _normalise_times(root: str, when: int) -> None:
     os.utime(root, (when, when))
 
 
+def _pins() -> dict[str, str]:
+    """name -> version, from requirements/runtime.txt."""
+    with open(os.path.join(ROOT, "requirements", "runtime.txt"), encoding="utf-8") as fh:
+        return dict(re.findall(r"^([A-Za-z0-9_.-]+)==([^\s\\]+)", fh.read(), re.MULTILINE))
+
+
+def _vendor(staging: str) -> None:
+    """Copy each runtime library from its installed distribution into the
+    archive: its package files, each checked against the distribution's
+    RECORD, and its METADATA and licence files - not the installer's own
+    records, which differ between pip and uv and would make two builds of
+    one commit differ. The installed version must be the pinned one."""
+    for name, version in sorted(_pins().items()):
+        try:
+            dist = importlib.metadata.distribution(name)
+        except importlib.metadata.PackageNotFoundError:
+            raise SystemExit(f"build aborted: {name} is not installed; run "
+                             f"pip install --require-hashes -r requirements/runtime.txt") from None
+        if dist.version != version:
+            raise SystemExit(f"build aborted: {name} {dist.version} is installed, "
+                             f"requirements/runtime.txt pins {version}")
+        for entry in dist.files or ():
+            rel = str(entry).replace("\\", "/")
+            parts = rel.split("/")
+            if ".." in parts or rel.startswith("/") or os.path.isabs(rel) or ":" in parts[0]:
+                continue                       # outside the package: a script, never copied
+            if "__pycache__" in parts or rel.endswith(".pyc"):
+                continue
+            meta = parts[0].endswith(".dist-info")
+            if meta and not (parts[-1] == "METADATA" or "licenses" in parts
+                             or parts[-1].startswith(("LICENSE", "COPYING", "NOTICE"))):
+                continue
+            source = str(entry.locate())
+            with open(source, "rb") as fh:
+                data = fh.read()
+            if entry.hash is None:
+                if not meta:                   # a package file must be accounted for
+                    raise SystemExit(f"build aborted: {rel} has no hash in its RECORD")
+            else:
+                digest = base64.urlsafe_b64encode(
+                    hashlib.new(entry.hash.mode, data).digest()).rstrip(b"=").decode()
+                if digest != entry.hash.value:
+                    raise SystemExit(f"build aborted: {rel} differs from its RECORD")
+            target = os.path.join(staging, *parts)
+            if not os.path.realpath(target).startswith(os.path.realpath(staging) + os.sep):
+                raise SystemExit(f"build aborted: {rel} would land outside the archive")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as fh:
+                fh.write(data)
+
+
 def build(target: str, interpreter: str = "/usr/bin/env python3",
           compressed: bool = True) -> str:
     package = os.path.join(ROOT, "iemod_fetch")
@@ -62,6 +120,7 @@ def build(target: str, interpreter: str = "/usr/bin/env python3",
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         with open(os.path.join(staging, "__main__.py"), "w", encoding="utf-8") as fh:
             fh.write(ENTRYPOINT)
+        _vendor(staging)
 
         # Fail the build rather than shipping a syntax error.
         if not compileall.compile_dir(staging, quiet=2, force=True):

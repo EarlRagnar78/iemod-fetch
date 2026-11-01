@@ -8,12 +8,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:          # the release workflow re-runs this gate (ADR-0027)
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.workflow is the caller's name when called, so a release's gate and
+  # main's own CI run never cancel each other.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -25,12 +28,12 @@ jobs:
     name: Lint, types, architecture
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
           cache: pip
           cache-dependency-path: pyproject.toml
 
@@ -49,29 +52,36 @@ jobs:
         run: lint-imports
 
   test:
-    name: py${{ matrix.python }} on ${{ matrix.os }}
+    name: tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # Windows is not an afterthought: it is where this tool is actually run,
         # and the path, credential-helper and 7-Zip code paths only exist there.
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.9", "3.13"]
+        # macOS runs in macos.yml: informational, not part of this gate, so a
+        # macOS runner that never starts cannot hold up a pull request or a
+        # release (the owner's decision, 2026-10-21).
+        os: [ubuntu-latest, windows-latest]
+        # One Python, the one in .python-version (ADR-0043): what the tool
+        # supports is what it is tested on. Coverage is measured on Linux.
         include:
           - os: ubuntu-latest
-            python: "3.12"
             coverage: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python }}
+          python-version-file: .python-version
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
       - run: pip install -e ".[test]"
 
       # The suite is offline by design. If a test ever reaches the network this
@@ -91,26 +101,62 @@ jobs:
 
       - name: Upload coverage
         if: ${{ matrix.coverage }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-xml
           path: coverage.xml
           retention-days: 14
 
+  gui:
+    # The PySide6 wizard (ADR-0031), driven by pytest-qt with no screen. Its own
+    # job: the CLI's matrix never installs Qt, so a Qt problem names this gate.
+    # macOS runs the same tests in macos.yml, informational like all of macOS.
+    name: GUI (PySide6, offscreen) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      QT_QPA_PLATFORM: offscreen
+      IEMOD_REQUIRE_GUI: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Qt's system libraries (EGL, xkbcommon, fontconfig)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+      # the runtime's libraries as shipped, by hash, before the extras: an
+      # extra's loose range would otherwise pull a newer one than the pin
+      # (test_build_zipapp builds from the pinned versions)
+      - run: pip install --require-hashes -r requirements/runtime.txt
+      - run: pip install -e ".[guitest]"
+      - name: The wizard's tests, and the api it calls
+        run: python -m pytest -q -rs tests/gui tests/test_project.py
+      - name: It starts
+        run: python -m iemod_fetch_gui --version
+
   stdlib-only:
-    name: Runs with nothing installed
+    name: Runs with only its runtime libraries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: pip install --require-hashes -r requirements/runtime.txt
 
-      # ADR-0002 is a promise to the operator, so it is checked the way the
-      # operator experiences it: a bare interpreter, no pip install, no venv.
+      # What the operator gets is checked the way they get it: the interpreter
+      # and the runtime's hash-pinned libraries (ADR-0043), nothing else.
       # `pytest` is the only thing added, and the property tests skip themselves
       # when Hypothesis is absent rather than failing.
-      - name: Import and run the CLI with only the standard library
+      - name: Import and run the CLI with only its runtime libraries
         run: |
           python -c "import iemod_fetch, iemod_fetch.cli; print(iemod_fetch.__version__)"
           python -m iemod_fetch --help > /dev/null
@@ -119,15 +165,105 @@ jobs:
           pip install pytest
           python -m pytest -q
 
+  real-weidu:
+    name: Mock EET install with the real WeiDU and mod_installer
+    runs-on: ubuntu-latest
+    env:
+      # Pinned toolchain (ADR-0026). WeiDU: the official v251.00 Linux release,
+      # sha256 recorded on first download. mod_installer: no release tag past
+      # v12.1.1, so the commit whose Cargo.toml says 16.0.0, built by
+      # packaging/mod_installer.py as the wizard's bundle carries it (ADR-0046;
+      # a test keeps the two pins equal).
+      WEIDU_URL: https://github.com/WeiDUorg/weidu/releases/download/v251.00/WeiDU-Linux-251.zip
+      WEIDU_SHA256: 3e1a34ec5d6e934b1d4a34541a1312d0170b120c6efe903a732415acde3bd3c0
+      MOD_INSTALLER_REV: 3b6827a039db43e342be19f7610ecdd680fe0a62
+      MOD_INSTALLER_VERSION: "16.0.0"   # Cargo.toml at that commit; upstream-versions.yml compares it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: pip install --require-hashes -r requirements/runtime.txt
+      - name: WeiDU, verified against its pinned digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/weidu"
+          curl -fsSL -o "$RUNNER_TEMP/weidu.zip" "$WEIDU_URL"
+          echo "$WEIDU_SHA256  $RUNNER_TEMP/weidu.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/weidu.zip" -d "$RUNNER_TEMP/weidu"
+          chmod +x "$RUNNER_TEMP/weidu/WeiDU-Linux/weidu"
+      - name: mod_installer, built from its pinned commit as the bundle's is
+        run: |
+          sudo apt-get install -y -q musl-tools
+          python packaging/mod_installer.py --out "$RUNNER_TEMP/mi"
+      # Synthetic game folders (no game data): WeiDU identifies the game by
+      # marker files, which is all these flags need. See tests/test_real_weidu.py.
+      - name: Real WeiDU agrees with the simulator and the limit measurement; the plan installs end to end
+        run: |
+          pip install pytest
+          IEMOD_WEIDU="$RUNNER_TEMP/weidu/WeiDU-Linux/weidu" \
+          IEMOD_MOD_INSTALLER="$RUNNER_TEMP/mi/mod_installer" IEMOD_REQUIRE_REAL=1 \
+            python -m pytest -q -rs tests/test_real_weidu.py tests/test_real_weidu_limits.py \
+              tests/test_real_mod_installer.py
+
+  # The wizard's mod_installer on Windows (ADR-0046), as the bundle builds it:
+  # the C runtime linked in, and packaging/mod_installer.py fails if the .exe
+  # still names VCRUNTIME140.dll. The release builds it only for a release;
+  # this proves it on every change. Linux: real-weidu; macOS: release-macos.
+  mod-installer-windows:
+    name: mod_installer for the Windows bundle, and a real install with it
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: Build, static C runtime, version checked
+        run: python packaging/mod_installer.py --out "$RUNNER_TEMP/mi"
+      - name: It starts, and names no Visual C++ runtime DLL
+        run: |
+          "$RUNNER_TEMP/mi/mod_installer.exe" --version
+          python - "$RUNNER_TEMP/mi/mod_installer.exe" <<'PY'
+          import sys
+          data = open(sys.argv[1], "rb").read().lower()
+          print("vcruntime140:", data.count(b"vcruntime140"),
+                "msvcp140:", data.count(b"msvcp140"))
+          sys.exit(1 if b"vcruntime140" in data or b"msvcp140" in data else 0)
+          PY
+      # The real install on Windows, with the official WeiDU (ADR-0046, item
+      # 22b): recorded answers reach WeiDU through mod_installer, and a folder
+      # with letters outside ASCII - EET's BG:EE folder travels so - is the
+      # measurement that keeps or lifts the wizard's refusal of one (#83).
+      - name: WeiDU for Windows, verified against its pinned digest
+        env:
+          WEIDU_WIN_URL: https://github.com/WeiDUorg/weidu/releases/download/v251.00/WeiDU-Windows-251.zip
+          WEIDU_WIN_SHA256: a54c6198d6ebed8139793fcacb225500d563657c23fc775b840383f9750493d8
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/weidu.zip" "$WEIDU_WIN_URL"
+          echo "$WEIDU_WIN_SHA256  $RUNNER_TEMP/weidu.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/weidu.zip" -d "$RUNNER_TEMP/weidu"
+      - name: The real mod_installer and WeiDU install on Windows
+        run: |
+          pip install --require-hashes -r requirements/runtime.txt
+          pip install pytest
+          IEMOD_WEIDU="$RUNNER_TEMP/weidu/WeiDU-Windows/weidu.exe" \
+          IEMOD_MOD_INSTALLER="$RUNNER_TEMP/mi/mod_installer.exe" IEMOD_REQUIRE_REAL=1 \
+            python -m pytest -q -rs tests/test_real_mod_installer.py
+
   build:
     name: Build and verify the zipapp
     runs-on: ubuntu-latest
     needs: [static]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: pip install --require-hashes -r requirements/runtime.txt
 
       - name: Build
         run: python build.py
@@ -146,7 +282,7 @@ jobs:
           python iemod-fetch.pyz --version
           python iemod-fetch.pyz --help > /dev/null
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: iemod-fetch-pyz
           path: iemod-fetch.pyz

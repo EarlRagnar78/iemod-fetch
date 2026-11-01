@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from iemod_fetch import cli
+from iemod_fetch import api, cli
 from iemod_fetch.errors import NetworkError
 from iemod_fetch.net import DownloadResult
 from iemod_fetch.archives import Kind
@@ -32,7 +32,8 @@ class StubClient:
                 return payload
         raise NetworkError(f"404 {url}")
 
-    def download(self, url, dest_path, expected_sha256=None, require_archive=True):
+    def download(self, url, dest_path, expected_sha256=None, require_archive=True,
+                 progress=None, cancel=None):
         import hashlib
         if url not in self.blobs:
             raise NetworkError(f"404 {url}")
@@ -71,8 +72,8 @@ def workspace(tmp_path, monkeypatch):
         blobs={url_a: zip_bytes("DlcMerger"),
                url_b: zip_bytes("eefixpack", "eefixpack/SETUP-EEFIXPACK.TP2")})
 
-    monkeypatch.setattr(cli, "HttpClient", lambda **kw: stub)
-    monkeypatch.setattr(cli, "resolve_credential",
+    monkeypatch.setattr(api, "HttpClient", lambda **kw: stub)
+    monkeypatch.setattr(api, "resolve_credential",
                         lambda **kw: type("C", (), {"token": None, "describe":
                                                     lambda self: "anonymous"})())
     monkeypatch.chdir(tmp_path)
@@ -200,7 +201,8 @@ def test_a_pinned_digest_that_no_longer_matches_fails_the_run(workspace):
     stub.blobs[url] = zip_bytes("DlcMerger") + b"tampered"
 
     class Strict(type(stub)):
-        def download(self, url, dest_path, expected_sha256=None, require_archive=True):
+        def download(self, url, dest_path, expected_sha256=None, require_archive=True,
+                 progress=None, cancel=None):
             import hashlib
             from iemod_fetch.errors import ChecksumMismatch
             data = self.blobs[url]
@@ -214,3 +216,114 @@ def test_a_pinned_digest_that_no_longer_matches_fails_the_run(workspace):
     assert code == 1
     assert "sha256 expected" in out
     assert not (tmp_path / "Mods3" / "DlcMerger").exists()
+
+
+# selection.json (ADR-0030): a selection made without any WeiDU.log drives the
+# same run, and a log converts to the selection a UI would save.
+SELECTION = {"schema_version": 1, "installs": [{"game": "BG2EE", "components": [
+    {"tp2": "DlcMerger/DlcMerger.tp2", "component": 3, "language": 0},
+    {"tp2": "eefixpack/SETUP-EEFIXPACK.TP2", "component": 0, "language": 0}]}]}
+
+
+def test_a_selection_without_any_weidu_log_fetches_the_same_mods(workspace):
+    tmp_path, stub = workspace
+    (tmp_path / "selection.json").write_text(json.dumps(SELECTION))
+    code, out = run(["--selection", "selection.json", "-t", "Mods"], tmp_path)
+    assert code == 0, out
+    assert (tmp_path / "Mods" / "DlcMerger" / "DlcMerger.tp2").exists()
+    assert (tmp_path / "Mods" / "eefixpack" / "SETUP-EEFIXPACK.TP2").exists()
+    assert len(stub.downloaded) == 2
+
+
+def test_a_weidu_log_is_converted_to_a_selection(workspace):
+    tmp_path, stub = workspace
+    code, out = run(["-w", "WeiDU.log:BG2EE", "--emit-selection", "sel.json",
+                     "--check-only", "-t", "Mods"], tmp_path)
+    assert code == 0, out
+    written = json.loads((tmp_path / "sel.json").read_text())
+    assert written["schema_version"] == 1
+    assert [(c["tp2"], c["component"]) for c in written["installs"][0]["components"]] \
+        == [("DlcMerger/DlcMerger.tp2", 3), ("eefixpack/SETUP-EEFIXPACK.TP2", 0)]
+    assert stub.downloaded == []
+
+
+def test_a_selection_and_a_weidu_log_together_are_refused(workspace):
+    tmp_path, _stub = workspace
+    (tmp_path / "selection.json").write_text(json.dumps(SELECTION))
+    code, _out = run(["--selection", "selection.json", "-w", "WeiDU.log"], tmp_path)
+    assert code == 2
+
+
+def test_a_broken_selection_is_a_configuration_error(workspace):
+    tmp_path, _stub = workspace
+    (tmp_path / "selection.json").write_text('{"schema_version": 7}')
+    code, _out = run(["--selection", "selection.json"], tmp_path)
+    assert code == 2
+
+
+# --list-mods: what a UI's selection screen shows, with no WeiDU.log at all.
+def test_list_mods_needs_no_weidu_log_and_downloads_nothing(workspace):
+    tmp_path, stub = workspace
+    (tmp_path / "lcc.json").write_text(json.dumps([
+        {"tp2": "eefixpack", "name": "EE Fixpack", "games": ["EET"], "safe": 2},
+        {"tp2": "newmod", "name": "A New Mod", "games": ["BG2EE"]}]))
+    code, out = run(["--list-mods", "mods.json", "-c", "lcc.json"], tmp_path)
+    assert code == 0, out
+    doc = json.loads((tmp_path / "mods.json").read_text())
+    assert doc["schema_version"] == 1
+    assert [m["key"] for m in doc["mods"]] == ["newmod", "dlcmerger", "eefixpack"]
+    assert stub.downloaded == []
+
+
+def test_list_mods_to_stdout_prints_only_the_json(workspace):
+    tmp_path, _stub = workspace
+    code, out = run(["--list-mods", "-"], tmp_path)
+    assert code == 0
+    assert json.loads(out)["mods"][0]["name"] == "DLC Merger"
+
+
+def test_list_mods_works_without_a_manifest_when_a_catalogue_is_given(workspace):
+    tmp_path, _stub = workspace
+    (tmp_path / "lcc.json").write_text(json.dumps([{"tp2": "x", "name": "X"}]))
+    code, out = run(["--list-mods", "-", "-m", "absent.json", "-c", "lcc.json"], tmp_path)
+    assert code == 0, out
+    assert [m["key"] for m in json.loads(out)["mods"]] == ["x"]
+
+
+def test_the_run_report_names_its_schema_version(workspace):
+    tmp_path, _stub = workspace
+    code, out = run(["-w", "WeiDU.log", "-t", "Mods", "--json-report", "r.json"],
+                    tmp_path)
+    assert code == 0, out
+    report = json.loads((tmp_path / "r.json").read_text())
+    assert report["schema_version"] == 1
+    jsonschema = pytest.importorskip("jsonschema")
+    import os
+    schema = os.path.join(os.path.dirname(__file__), os.pardir, "schemas",
+                          "report-v1.schema.json")
+    with open(schema, encoding="utf-8") as fh:
+        jsonschema.validate(report, json.load(fh))
+
+
+def test_events_are_written_one_json_object_per_line(workspace):
+    tmp_path, _stub = workspace
+    code, out = run(["-w", "WeiDU.log", "-t", "Mods", "--events", "events.jsonl"],
+                    tmp_path)
+    assert code == 0, out
+    lines = (tmp_path / "events.jsonl").read_text().splitlines()
+    events = [json.loads(line) for line in lines]
+    assert events[0]["event"] == "run_started" and events[-1]["event"] == "run_finished"
+    assert sum(e["event"] == "mod_finished" for e in events) == 2
+
+
+def test_one_run_fetches_then_checks_what_it_just_staged(workspace):
+    """
+    The mods' own tp2 constraints are read from the staged folders. They used
+    to be read before the downloads, so a fresh selection needed two runs: one
+    to fetch, one to check. Now fetch comes first and the check sees the mods.
+    """
+    tmp_path, _stub = workspace
+    code, out = run(["-w", "WeiDU.log", "-t", "Mods"], tmp_path)
+    assert code == 0, out
+    assert "own tp2s    : 2 mod(s)" in out
+    assert "not staged" not in out

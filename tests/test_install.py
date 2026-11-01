@@ -205,3 +205,58 @@ def test_a_tp2_without_a_version_is_not_an_error(tmp_path):
     arc = mod_zip(tmp_path / "m.zip", "DlcMerger")
     outcome = install_from_archive(arc, str(tmp_path / "Mods"), "DlcMerger")
     assert outcome.version is None and outcome.tp2_info is not None
+
+
+# --------------------------------------------------- tp2 at the archive root
+# The older WeiDU packaging: setup-<mod>.tp2 and setup-<mod>.exe at the root,
+# the mod's files in <mod>/. The tp2's paths are relative to the game
+# directory, so <mod>/setup-<mod>.tp2 is equivalent - and it is the only layout
+# a one-folder-per-mod staging area can represent. Copying the archive root
+# verbatim produced <mod>/<mod>/..., which WeiDU cannot install.
+def _root_tp2_zip(path, folder_in_archive="d0questpack"):
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("setup-d0questpack.tp2", "BACKUP ~d0questpack/backup~")
+        zf.writestr("setup-d0questpack.exe", "MZ weidu")
+        zf.writestr(f"{folder_in_archive}/tra/english/setup.tra", "@1 = ~x~")
+    return str(path)
+
+
+def test_a_root_level_tp2_is_moved_into_its_mod_folder(tmp_path):
+    target = tmp_path / "Mods"
+    outcome = install_from_archive(_root_tp2_zip(tmp_path / "m.zip"), str(target),
+                                   "d0questpack")
+    mod = target / "d0questpack"
+    assert outcome.dest == str(mod)
+    assert (mod / "setup-d0questpack.tp2").is_file()
+    assert (mod / "tra" / "english" / "setup.tra").is_file()
+    assert not (mod / "d0questpack").exists()           # no nesting
+    assert not (mod / "setup-d0questpack.exe").exists()  # a WeiDU binary, not mod data
+
+
+def test_the_root_tp2_folder_match_is_case_insensitive_but_strict(tmp_path):
+    outcome = install_from_archive(_root_tp2_zip(tmp_path / "m.zip", "D0QuestPack"),
+                                   str(tmp_path / "Mods"), "d0questpack")
+    assert os.path.isfile(os.path.join(outcome.dest, "setup-d0questpack.tp2"))
+    assert os.path.isfile(os.path.join(outcome.dest, "tra", "english", "setup.tra"))
+
+
+def test_a_root_tp2_without_its_folder_is_left_as_the_archive_has_it(tmp_path):
+    """No matching folder: nothing to fold into, and nothing is guessed."""
+    arc = tmp_path / "m.zip"
+    with zipfile.ZipFile(arc, "w") as zf:
+        zf.writestr("setup-d0questpack.tp2", "BACKUP ~d0questpack/backup~")
+        zf.writestr("other/readme.txt", "x")
+    outcome = install_from_archive(str(arc), str(tmp_path / "Mods"), "d0questpack")
+    assert os.path.isfile(os.path.join(outcome.dest, "setup-d0questpack.tp2"))
+    assert os.path.isfile(os.path.join(outcome.dest, "other", "readme.txt"))
+
+
+def test_a_mod_already_in_its_folder_is_never_folded_again(tmp_path):
+    """X/setup-X.tp2 with an X/X/ subfolder is a normal mod with a subfolder."""
+    arc = tmp_path / "m.zip"
+    with zipfile.ZipFile(arc, "w") as zf:
+        zf.writestr("d0questpack/setup-d0questpack.tp2", "x")
+        zf.writestr("d0questpack/d0questpack/data.bin", "x")
+    outcome = install_from_archive(str(arc), str(tmp_path / "Mods"), "d0questpack")
+    assert os.path.isfile(os.path.join(outcome.dest, "setup-d0questpack.tp2"))
+    assert os.path.isfile(os.path.join(outcome.dest, "d0questpack", "data.bin"))

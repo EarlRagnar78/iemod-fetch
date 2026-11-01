@@ -1,0 +1,62 @@
+{
+ "K4thos/EET": {
+  "stars": 214,
+  "pushed": "2026-09-10",
+  "archived": false,
+  "tag": "v14.1",
+  "release_name": "Release 14.1",
+  "release_date": "2025-04-07",
+  "release_url": "https://github.com/Gibberlings3/EET/releases/tag/v14.1",
+  "checked": "2026-10-19"
+ },
+ "Gibberlings3/SwordCoastStratagems": {
+  "stars": 94,
+  "pushed": "2024-11-21",
+  "archived": false,
+  "tag": "v35.21",
+  "release_name": "Sword Coast Stratagems: Version 35.21",
+  "release_date": "2024-11-21",
+  "release_url": "https://github.com/Gibberlings3/SwordCoastStratagems/releases/tag/v35.21",
+  "checked": "2026-10-19"
+ },
+ "Gibberlings3/Tweaks-Anthology": {
+  "stars": 123,
+  "pushed": "2026-08-31",
+  "archived": false,
+  "tag": "v18",
+  "release_name": "Version 18",
+  "release_date": "2025-08-22",
+  "release_url": "https://github.com/Gibberlings3/Tweaks-Anthology/releases/tag/v18",
+  "checked": "2026-10-19"
+ },
+ "Pocket-Plane-Group/bg1ub": {
+  "stars": 48,
+  "pushed": "2026-09-10",
+  "archived": false,
+  "tag": "v17.1",
+  "release_name": "BG1 Unfinished Business v17.1",
+  "release_date": "2025-08-25",
+  "release_url": "https://github.com/Pocket-Plane-Group/bg1ub/releases/tag/v17.1",
+  "checked": "2026-10-19"
+ },
+ "gibberlings3/ee_fixpack": {
+  "stars": 57,
+  "pushed": "2026-10-15",
+  "archived": false,
+  "tag": "",
+  "release_name": "",
+  "release_date": "",
+  "release_url": "",
+  "checked": "2026-10-19"
+ },
+ "Argent77/A7-DlcMerger": {
+  "stars": 75,
+  "pushed": "2026-09-06",
+  "archived": false,
+  "tag": "v2.1",
+  "release_name": "DLC Merger 2.1",
+  "release_date": "2026-07-03",
+  "release_url": "https://github.com/Argent77/A7-DlcMerger/releases/tag/v2.1",
+  "checked": "2026-10-19"
+ }
+}

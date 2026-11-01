@@ -24,7 +24,7 @@ release cadence.
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence
+from collections.abc import Iterable, Sequence
 
 from .errors import ConfigError
 from .urls import repo_from_url
@@ -46,18 +46,18 @@ class CatalogueEntry:
     tp2: str
     name: str
     urls: tuple = ()
-    safe: Optional[int] = None
+    safe: int | None = None
     status: tuple = ()
-    last_update: Optional[str] = None
+    last_update: str | None = None
     games: tuple = ()
     categories: tuple = ()
     requires: tuple = ()
     conflicts: tuple = ()
-    embedded_in: Optional[int] = None
+    embedded_in: int | None = None
     origin: str = "catalogue"
 
     @property
-    def github(self) -> Optional[str]:
+    def github(self) -> str | None:
         """The repository that best matches this mod, if the catalogue lists one."""
         repos = [r for r in (repo_from_url(u) for u in self.urls) if r]
         if not repos:
@@ -97,7 +97,7 @@ class CatalogueEntry:
         return tuple(out)
 
     @property
-    def expected_tp2(self) -> Optional[str]:
+    def expected_tp2(self) -> str | None:
         """
         The .tp2 name this mod actually ships, when the catalogue records a
         usable one.
@@ -129,7 +129,7 @@ class CatalogueEntry:
         interface = any("nterface" in c for c in self.categories)
         return interface and self.last_update < "2021-04-01"
 
-    def advisories(self) -> List[str]:
+    def advisories(self) -> list[str]:
         """Human-readable warnings this catalogue raises about the mod."""
         notes = []
         if self.embedded_in:
@@ -150,7 +150,7 @@ class CatalogueEntry:
                          + (f" (last updated {self.last_update})" if self.last_update else ""))
         return notes
 
-    def game_advisories(self, game: Optional[str]) -> List[str]:
+    def game_advisories(self, game: str | None) -> list[str]:
         """
         Warn when the catalogue does not list this mod for the game being built.
 
@@ -162,8 +162,8 @@ class CatalogueEntry:
             return []
         if game in self.games:
             return []
-        return [f"{self.origin} does not list this mod as {game}-compatible "
-                f"(it lists: {', '.join(self.games)})"]
+        return [(f"{self.origin} does not list this mod as {game}-compatible "
+                f"(it lists: {', '.join(self.games)})")]
 
     @property
     def blocking(self) -> bool:
@@ -172,27 +172,27 @@ class CatalogueEntry:
 
 @dataclass
 class SupplementaryCatalogue:
-    by_key: Dict[str, List[CatalogueEntry]] = field(default_factory=dict)
-    by_repo: Dict[str, CatalogueEntry] = field(default_factory=dict)
+    by_key: dict[str, list[CatalogueEntry]] = field(default_factory=dict)
+    by_repo: dict[str, CatalogueEntry] = field(default_factory=dict)
     name: str = "catalogue"
     skipped: int = 0
 
     # ------------------------------------------------------------- loading
     @classmethod
-    def load(cls, path: str) -> "SupplementaryCatalogue":
+    def load(cls, path: str, name: str | None = None) -> SupplementaryCatalogue:
         try:
             if os.path.getsize(path) > _MAX_BYTES:
                 raise ConfigError(f"catalogue {path} is larger than {_MAX_BYTES} bytes")
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 raw = json.load(fh)
         except OSError as exc:
             raise ConfigError(f"cannot read catalogue {path}: {exc}") from exc
         except json.JSONDecodeError as exc:
             raise ConfigError(f"catalogue {path} is not valid JSON: {exc}") from exc
-        return cls.from_entries(raw, name=os.path.basename(path))
+        return cls.from_entries(raw, name=name or _label(path))
 
     @classmethod
-    def from_entries(cls, raw, name: str = "catalogue") -> "SupplementaryCatalogue":
+    def from_entries(cls, raw, name: str = "catalogue") -> SupplementaryCatalogue:
         if isinstance(raw, dict):
             raw = raw.get("mods", raw.get("entries", []))
         if not isinstance(raw, list):
@@ -208,56 +208,70 @@ class SupplementaryCatalogue:
             if not tp2 or tp2.lower() == "non-weidu":
                 catalogue.skipped += 1
                 continue
-            folder = tp2.replace("\\", "/").split("/")[0]
-            key = normalize_key(folder)
-            if not key:
+            # One mod may ship several tp2s, listed `EET;EET_end;EET_gui`: each
+            # is findable by its own name (read as one, EET was never found).
+            folders = [part.replace("\\", "/").split("/")[0].strip()
+                       for part in tp2.split(";")]
+            # a tp2 listed twice in one record is one entry
+            folders = list({normalize_key(f): f for f in reversed(folders)
+                            if normalize_key(f)}.values())[::-1]
+            if not folders:
                 catalogue.skipped += 1
                 continue
-
-            urls = item.get("urls") or []
-            entry = CatalogueEntry(
-                tp2=folder,
-                name=str(item.get("name") or folder),
-                urls=tuple(u for u in urls if isinstance(u, str)),
-                safe=item.get("safe") if isinstance(item.get("safe"), int) else None,
-                status=tuple(s for s in (item.get("status") or []) if isinstance(s, str)),
-                last_update=item.get("last_update") or None,
-                games=tuple(g for g in (item.get("games") or []) if isinstance(g, str)),
-                categories=tuple(c for c in (item.get("categories") or [])
-                                 if isinstance(c, str)),
-                embedded_in=(item.get("embedded_in")
-                             if isinstance(item.get("embedded_in"), int) else None),
-                requires=tuple((item.get("compatibilities") or {}).get("requires") or ()),
-                conflicts=tuple((item.get("compatibilities") or {}).get("conflicts") or ()),
-                origin=name,
-            )
-            catalogue.by_key.setdefault(key, []).append(entry)
-            # A mod is also findable by the repository it lives in, which is how
-            # an entry gets found when neither the WeiDU folder nor the manifest
-            # key matches its catalogue tp2.
-            for url in entry.urls:
-                repo = repo_from_url(url)
-                if repo:
-                    catalogue.by_repo.setdefault(repo.lower(), entry)
+            for folder in folders:
+                catalogue._add(item, folder, name)
         return catalogue
+
+    def _add(self, item: dict, folder: str, name: str) -> None:
+        """One tp2 of a catalogue record, findable by its name and by its repository."""
+        urls = item.get("urls") or []
+        entry = CatalogueEntry(
+            tp2=folder,
+            name=str(item.get("name") or folder),
+            urls=tuple(u for u in urls if isinstance(u, str)),
+            safe=item.get("safe") if isinstance(item.get("safe"), int) else None,
+            status=tuple(s for s in (item.get("status") or []) if isinstance(s, str)),
+            last_update=item.get("last_update") or None,
+            games=tuple(g for g in (item.get("games") or []) if isinstance(g, str)),
+            categories=tuple(c for c in (item.get("categories") or [])
+                             if isinstance(c, str)),
+            embedded_in=(item.get("embedded_in")
+                         if isinstance(item.get("embedded_in"), int) else None),
+            requires=tuple((item.get("compatibilities") or {}).get("requires") or ()),
+            conflicts=tuple((item.get("compatibilities") or {}).get("conflicts") or ()),
+            origin=name,
+        )
+        self.by_key.setdefault(normalize_key(folder), []).append(entry)
+        # A mod is also findable by the repository it lives in, which is how
+        # an entry gets found when neither the WeiDU folder nor the manifest
+        # key matches its catalogue tp2.
+        for url in entry.urls:
+            repo = repo_from_url(url)
+            if repo:
+                self.by_repo.setdefault(repo.lower(), entry)
 
     def __len__(self) -> int:
         return sum(len(v) for v in self.by_key.values())
 
     # ------------------------------------------------------------- lookup
-    def lookup(self, *candidates: Optional[str]) -> Optional[CatalogueEntry]:
+    def lookup(self, *candidates: str | None) -> CatalogueEntry | None:
         """Find an entry by any of the given names (mod folder, manifest key…)."""
         for candidate in candidates:
             if not candidate:
                 continue
-            entries = self.by_key.get(normalize_key(candidate))
+            key = normalize_key(candidate)
+            entries = self.by_key.get(key)
             if entries:
-                # A resolvable entry beats a bare forum link.
+                # A resolvable entry beats a bare forum link, and a repository
+                # named after the mod beats one that is not (EET's own over
+                # EET_Android, which ships the same tp2s).
                 with_repo = [e for e in entries if e.github]
-                return (with_repo or entries)[0]
+                named = [e for e in with_repo
+                         if normalize_key(str(e.github).split("/", 1)[1]) == key]
+                return (named or with_repo or entries)[0]
         return None
 
-    def lookup_repo(self, repo: Optional[str]) -> Optional[CatalogueEntry]:
+    def lookup_repo(self, repo: str | None) -> CatalogueEntry | None:
         """Find an entry by the GitHub repository it is published from."""
         return self.by_repo.get(repo.lower()) if repo else None
 
@@ -269,8 +283,15 @@ class CatalogueSet:
         self.catalogues = list(catalogues)
 
     @classmethod
-    def load(cls, paths: Iterable[str]) -> "CatalogueSet":
-        return cls([SupplementaryCatalogue.load(p) for p in paths or ()])
+    def load(cls, paths: Iterable[str]) -> CatalogueSet:
+        catalogues: list[SupplementaryCatalogue] = []
+        seen: dict[str, int] = {}
+        for path in paths or ():
+            name = _label(path)
+            seen[name] = seen.get(name, 0) + 1       # two catalogues, two names
+            catalogues.append(SupplementaryCatalogue.load(
+                path, name if seen[name] == 1 else f"{name} ({seen[name]})"))
+        return cls(catalogues)
 
     def __bool__(self) -> bool:
         return bool(self.catalogues)
@@ -278,20 +299,35 @@ class CatalogueSet:
     def __len__(self) -> int:
         return sum(len(c) for c in self.catalogues)
 
-    def lookup(self, *candidates: Optional[str]) -> Optional[CatalogueEntry]:
+    def lookup(self, *candidates: str | None) -> CatalogueEntry | None:
         for catalogue in self.catalogues:
             hit = catalogue.lookup(*candidates)
             if hit:
                 return hit
         return None
 
-    def lookup_repo(self, repo: Optional[str]) -> Optional[CatalogueEntry]:
+    def lookup_repo(self, repo: str | None) -> CatalogueEntry | None:
         for catalogue in self.catalogues:
             hit = catalogue.lookup_repo(repo)
             if hit:
                 return hit
         return None
 
-    def find(self, folder=None, key=None, repo=None) -> Optional[CatalogueEntry]:
+    def find(self, folder=None, key=None, repo=None) -> CatalogueEntry | None:
         """Folder, then manifest key, then the repository the manifest names."""
         return self.lookup(folder, key) or self.lookup_repo(repo)
+
+
+def _label(path: str) -> str:
+    """
+    A catalogue's name, from its path: the data cache's
+    `lcc-docs/db/mods.json` is lcc-docs (review of #65: "mods.json" is what
+    every catalogue is called); a file named for itself keeps its name.
+    """
+    parts = [p for p in os.path.normpath(os.path.abspath(path)).split(os.sep) if p]
+    if not parts or os.path.splitext(parts[-1])[0].lower() not in ("mods", "catalogue"):
+        return os.path.basename(path)
+    parts.pop()
+    while len(parts) > 1 and parts[-1].lower() in ("db", "data"):
+        parts.pop()
+    return parts[-1] if parts else os.path.basename(path)

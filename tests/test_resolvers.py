@@ -71,6 +71,48 @@ def test_multiple_candidate_assets_warn_and_are_deterministic():
     assert res.alternatives
 
 
+# WeiDU's packaging convention prefixes a release asset with the platform its
+# bundled setup binary is for: win-/wzp- (Windows), lin- (Linux), osx-/mac-.
+# Shortest-name-wins picked lin- on Windows; the prefix is a published
+# convention, not a guess, so it decides before any tie-break does.
+_PLATFORM_ASSETS = ["win-mod-v1.zip", "lin-mod-v1.zip", "osx-mod-v1.zip"]
+
+
+@pytest.mark.parametrize("platform,expected", [
+    ("win32", "win-mod-v1.zip"),
+    ("cygwin", "win-mod-v1.zip"),
+    ("linux", "lin-mod-v1.zip"),
+    ("darwin", "osx-mod-v1.zip"),
+])
+def test_the_asset_packaged_for_this_platform_is_chosen(platform, expected):
+    client = StubClient({"releases/latest": release(_PLATFORM_ASSETS)})
+    res = GitHubResolver(client, platform=platform).resolve(src(github="o/r"))
+    assert res.candidate.filename == expected
+    assert not any("Pin it" in w for w in res.warnings)   # no longer ambiguous
+
+
+def test_wzp_counts_as_windows_and_mac_as_macos():
+    client = StubClient({"releases/latest": release(["wzp-mod.zip", "mac-mod.zip"])})
+    assert GitHubResolver(client, platform="win32").resolve(
+        src(github="o/r")).candidate.filename == "wzp-mod.zip"
+    assert GitHubResolver(client, platform="darwin").resolve(
+        src(github="o/r")).candidate.filename == "mac-mod.zip"
+
+
+def test_a_platform_neutral_asset_beats_another_platforms_package():
+    client = StubClient({"releases/latest": release(["lin-mod.zip", "mod-v2.zip"])})
+    res = GitHubResolver(client, platform="win32").resolve(src(github="o/r"))
+    assert res.candidate.filename == "mod-v2.zip"
+
+
+def test_only_another_platforms_package_is_used_and_said_so():
+    """The mod data is the same; only the bundled setup binary differs."""
+    client = StubClient({"releases/latest": release(["lin-mod.zip"])})
+    res = GitHubResolver(client, platform="win32").resolve(src(github="o/r"))
+    assert res.candidate.filename == "lin-mod.zip"
+    assert any("packaged for another platform" in w for w in res.warnings)
+
+
 def test_a_pinned_asset_wins():
     client = StubClient({"releases/latest": release(["mod.iemod", "mod-docs.zip"])})
     res = GitHubResolver(client).resolve(src(github="o/r", asset="mod-docs.zip"))
@@ -121,6 +163,31 @@ def test_a_github_profile_url_is_not_treated_as_a_repository():
 ])
 def test_repo_extraction_is_exact(url, expected):
     assert repo_from_url(url) == expected
+
+
+@pytest.mark.parametrize("url,expected", [
+    # lcc-docs' links for the supplied EET log, 2026-10-23
+    ("https://forums.beamdog.com/uploads/editor/gk/qg6zo9o3fqho.zip", True),
+    ("https://forums.beamdog.com/discussion/45563/", True),
+    ("https://forums.pocketplane.net/index.php?topic=1", True),
+    ("https://www.shsforums.net/topic/57927-mod-the-picture-standard/", True),
+    ("https://www.baldursgateworld.fr/viewtopic.php?t=28812", True),
+    ("https://baldurs-gate.de/index.php?threads/45508/", True),          # XenForo
+    ("https://www.gibberlings3.net/forums/topic/30786-kit-pack/", True),
+    ("https://baldurs-gate.de/index.php?resources/ascalons-questpack.4/", False),
+    ("https://www.gibberlings3.net/files/file/702-a-mod-for-the-orderly/", False),
+    ("https://baldurs-gate.de/index.php?/threads/1/", True),    # route with a slash
+    ("https://github.com/someone/topic/releases", False),        # a code host: no thread
+    ("https://gitlab.com/someone/discussion", False),
+    # an author's own download pages are not threads
+    ("https://www.shsforums.net/files/file/1084-fishing-for-trouble/", False),
+    ("https://downloads.weaselmods.net/download/alabaster-sands/?wpdmdl=593", False),
+    ("https://www.gibberlings3.net/mods/quests/ascension/", False),
+    ("https://github.com/Gibberlings3/Ascension", False),
+])
+def test_a_forum_post_is_told_from_an_authors_page(url, expected):
+    from iemod_fetch.urls import is_forum_post
+    assert is_forum_post(url) is expected
 
 
 # -------------------------------------------------------------- landing pages
@@ -208,14 +275,6 @@ def test_a_404_from_the_api_becomes_a_readable_manual_reason_not_a_crash():
     res = GitHubResolver(client).resolve(src(github="o/r"))
     assert not res.ok
     assert "no published release" in res.reason
-
-
-def test_a_403_explains_the_rate_limit():
-    from iemod_fetch.errors import HttpStatusError
-    client = StubClient({"releases/latest": HttpStatusError(
-        "https://api.github.com/repos/o/r/releases/latest", 403, "Forbidden")})
-    res = GitHubResolver(client).resolve(src(github="o/r"))
-    assert not res.ok and "GH_TOKEN" in res.reason
 
 
 # ================= regressions from the first real Windows run =================
@@ -322,3 +381,50 @@ def test_a_pinned_tag_never_falls_back_to_a_branch():
 def test_a_repository_that_does_not_exist_still_fails():
     res = GitHubResolver(StubClient({})).resolve(src(github="o/missing"))
     assert not res.ok and "no published release" in res.reason
+
+
+@pytest.mark.parametrize("status,headers,said", [
+    (403, {}, "refused with no quota header"),
+    (401, {}, "the credential was rejected"),
+])
+def test_a_refusal_is_not_called_a_rate_limit(status, headers, said):
+    # A proxy or a blocked repository answers a bare 403 too; it was reported
+    # as "rate limited or credential rejected; set GH_TOKEN", which no token cures
+    client = StubClient({"/repos/o/r/": HttpStatusError("https://api.github.com/repos/o/r",
+                                                        status, "Forbidden")})
+    res = GitHubResolver(client).resolve(src(github="o/r"))
+    assert not res.ok and said in res.reason and "set GH_TOKEN" not in res.reason
+
+
+def test_a_link_to_the_page_itself_is_never_the_download(fake_opener):
+    # Measured on the real site (download-sources.yml, 2026-10-22): a WeaselMods
+    # page links to itself, `/download/<its slug>/`, which scored on the slug and
+    # was "downloaded" - an HTML page, not the archive
+    page = "https://downloads.weaselmods.net/download/alabaster-sands/"
+    body = weasel_page(extra=b'<a href="/download/alabaster-sands/#top">Download</a>'
+                             b'<a href="https://downloads.weaselmods.net/download/'
+                             b'alabaster-sands">Alabaster Sands</a>')
+    res = LandingPageResolver(landing(page, body)).resolve(src(key="AlabasterSands", url=page))
+    assert not res.ok and "scored high enough" in res.reason
+
+
+def test_a_wpdm_package_page_gives_its_own_download_link(fake_opener):
+    # Measured on the real site: WeaselMods' button is drawn by script, so the
+    # page's links never show it; ?wpdmdl=<post id> answers the zip itself
+    # (Alabaster Sands, post 593: AlabasterSands-v2.0.zip)
+    page = "https://downloads.weaselmods.net/download/alabaster-sands/"
+    body = weasel_page().replace(
+        b"<html>", b'<html><body data-rsssl="1" class="wpdmpro-template-default single '
+                   b'single-wpdmpro postid-593 wp-custom-logo right-sidebar ">')
+    res = LandingPageResolver(landing(page, body)).resolve(src(key="AlabasterSands", url=page))
+    assert res.ok
+    assert res.candidate.url == page + "?wpdmdl=593"
+    assert res.candidate.filename == "alabaster-sands.zip"
+
+
+def test_a_page_listing_wpdm_packages_is_not_a_package(fake_opener):
+    # the site's home or a category lists many packages: no single post id
+    page = "https://downloads.weaselmods.net/"
+    body = weasel_page().replace(b"<html>", b'<html><body class="home blog postid-12">')
+    res = LandingPageResolver(landing(page, body)).resolve(src(url=page))
+    assert not res.ok

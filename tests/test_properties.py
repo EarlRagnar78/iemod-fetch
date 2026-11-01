@@ -270,3 +270,78 @@ def test_moving_one_element_to_the_front_costs_one_move(items):
     assume(len(items) > 1)
     rotated = [items[-1]] + items[:-1]
     assert len(_minimum_moves(items, rotated)) == 1
+
+
+# selection.json (ADR-0030) says what a WeiDU.log says, so the trip through a
+# log loses nothing.
+import json  # noqa: E402
+
+from iemod_fetch.naming import is_safe_component  # noqa: E402
+from iemod_fetch.selection import parse_selection, selection_from_logs  # noqa: E402
+
+# Only names a selection accepts: no Windows device names (AUX, CON, ...).
+_sel_name = st.from_regex(r"[A-Za-z][A-Za-z0-9_#-]{0,15}", fullmatch=True).filter(
+    lambda n: is_safe_component(n) and is_safe_component(n + ".tp2"))
+_sel_choice = st.fixed_dictionaries(
+    {"tp2": st.builds(lambda f, t: f"{f}/{t}.tp2", _sel_name, _sel_name),
+     "component": st.integers(0, 9999), "language": st.integers(0, 30)},
+    optional={"label": st.from_regex(r"[A-Za-z0-9 :()'-]{1,40}", fullmatch=True)
+              .map(str.strip).filter(bool)})
+
+
+@given(st.lists(_sel_choice, max_size=25))
+def test_any_valid_selection_survives_the_trip_through_a_weidu_log(components):
+    original = parse_selection(json.dumps(
+        {"schema_version": 1, "installs": [{"game": "BG2EE", "components": components}]}))
+    text = original.weidu_logs()[0].text
+    again = selection_from_logs([("BG2EE", parse_weidu_log(text))])
+    assert again.as_dict() == original.as_dict()
+
+
+# GUI-AUDIT M5b item 31: the order page's check after a drop looks again only
+# at the rules the moved unit is in; it must always equal the full check.
+from iemod_fetch.ordering import broken_after_move, broken_pairs, reverse  # noqa: E402
+
+
+@st.composite
+def _order_moves(draw):
+    size = draw(st.integers(min_value=2, max_value=12))
+    nodes = [f"n{i}" for i in range(size)]
+    before = {node: set(draw(st.lists(st.sampled_from(nodes), max_size=4))) - {node}
+              for node in nodes}
+    order = draw(st.permutations(nodes))
+    moves = draw(st.lists(st.tuples(st.integers(0, size - 1), st.integers(0, size - 1)),
+                          max_size=10))
+    return list(order), before, moves
+
+
+@settings(max_examples=300, deadline=None)
+@given(_order_moves())
+def test_the_check_after_each_move_equals_the_full_check(case):
+    order, before, moves = case
+    followers = reverse(before)
+    breaks = broken_pairs(order, before)
+    for source, target in moves:
+        node = order.pop(source)
+        order.insert(target, node)
+        breaks = broken_after_move(breaks, order, before, node, followers)
+        assert breaks == broken_pairs(order, before)
+        assert broken_after_move(breaks, order, before, node) == breaks   # no followers
+
+
+# GUI-AUDIT M5b item 32: every move the order page offers a red row mends a
+# rule it breaks and breaks no other, and moves that row alone.
+from iemod_fetch.ordering import order_fixes  # noqa: E402
+
+
+@settings(max_examples=300, deadline=None)
+@given(_order_moves())
+def test_every_offered_fix_mends_a_rule_and_breaks_none(case):
+    order, before, _moves = case
+    now = broken_pairs(order, before)
+    for node in order:
+        for fix in order_fixes(order, before, node):
+            after = broken_pairs(fix.order, before)
+            assert fix.fixed and not fix.fixed & after
+            assert after <= now and after < now
+            assert [n for n in fix.order if n != node] == [n for n in order if n != node]

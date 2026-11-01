@@ -1,32 +1,16 @@
-"""Command line interface."""
+"""
+Command line interface: flags in, `api.run`, exit code out.
+
+Nothing is decided here. The parser turns flags into `api.Settings`; what the
+tool does with them is `api.run`, the same function a GUI calls (ADR-0029).
+"""
 import argparse
-from typing import List, Optional, Sequence
-from dataclasses import dataclass, field
-import os
 import sys
 
-from . import __version__
-from .auth import resolve_credential
-from .catalogues import CatalogueSet
+from . import __version__, api
 from .config import LIST_KEYS, load_config
 from .errors import ConfigError, ModFetchError
-from .manifest import load_manifest
-from .net import DEFAULT_MAX_BYTES, HttpClient
-from .orgindex import OwnerIndex, load_trusted_owners
-from .pinning import build_pinned_manifest, write_pinned_manifest
-from .moddb import ModDatabase
-from .naming import normalize_key
-from .modmeta import find_metadata
-from .plan import build_plan, load_aliases
-from .install import State
-from .tp2 import read_mod_tp2
-from .conflicts import build_conflict_report, render_conflict_report
-from .ordering import (EET_LOG, PRE_EET_LOG, OrderIndex, plan_order,
-                       render_plan_summary)
-from .rules import Context, Install, RuleSet, check_all, load_suppressions
-from .report import RunReport, render_summary
-from .runner import Options, Runner
-from .weidu import ParsedLog, parse_weidu_files, split_log_spec
+from .net import DEFAULT_MAX_BYTES
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +34,19 @@ def build_parser() -> argparse.ArgumentParser:
                           ":GAME (EET, BGEE, BG2EE, SoD...) to say which install "
                           "the log describes - EET is detected automatically - so "
                           "catalogue compatibility warnings are judged per game")
+    src.add_argument("--selection", metavar="PATH",
+                     help="selection.json (schema 1): the mods, components and "
+                          "languages chosen, without a WeiDU.log - what a UI saves. "
+                          "Used instead of --weidu-log, never with it")
+    src.add_argument("--bio-code", metavar="PATH",
+                     help="a file holding a BIO-MODLIST-V1 share code (Born2BSalty's "
+                          "Infinity Orchestrator): its WeiDU logs are what is wanted, "
+                          "instead of -w or --selection")
+    src.add_argument("--pi-list", metavar="PATH:GAME",
+                     help="a Project Infinity / Infinity Mod Forge list "
+                          "(LABEL;description or folder:number;description per line) "
+                          "as what is wanted. LABELs are read from the staged tp2s "
+                          "first, krion64's records second; an unknown one is an error")
     src.add_argument("--aliases", metavar="PATH",
                      help="JSON map {weidu_folder: manifest_tp2} for entries whose "
                           "names differ between the log and the catalogue")
@@ -72,14 +69,43 @@ def build_parser() -> argparse.ArgumentParser:
                      help="krion64 data directory (categories.json + mods/*.json) "
                           "giving each mod's install-order category and position; "
                           "required by --plan-order")
+    src.add_argument("--eet-sequence", metavar="PATH",
+                     help="BigWorldSetup-NG data/games/eet.json: its bg2ee "
+                          "sequence says which mods may go on BG2:EE before the "
+                          "EET core, and places in --plan-order a mod krion64 "
+                          "does not (default: the data cache; without it, EET's "
+                          "readme rule - only the EE Fixpack - and no such place)")
+    src.add_argument("--releases", metavar="PATH",
+                     help="krion64's data/version_cache.json: each mod repository's "
+                          "latest GitHub release; with its sibling mods/, the "
+                          "versions krion64 records. Says which installed mods have "
+                          "a newer version. Default: the data cache")
+    src.add_argument("--sorting-order", metavar="PATH",
+                     help="a Project Infinity 'Sorting Order' file (one 'tp2 *' or "
+                          "'tp2 N N' per line): what it names is installed in its "
+                          "order, as order rules on top of --rules (ADR-0037)")
+    src.add_argument("--fetch-metadata", action="store_true",
+                     help="fetch the author's own metadata ini (Before/After) of "
+                          "every planned mod not staged yet, from the repository "
+                          "the catalogue names, into the data cache (ADR-0037). "
+                          "Fetched ones are used by every later run")
     src.add_argument("--suppress", metavar="PATH",
                      help="JSON list of rules you have verified no longer apply")
     src.add_argument("--all-manifest-entries", action="store_true",
                      help="also fetch catalogue entries no WeiDU log references")
     src.add_argument("--only", action="append", default=None, metavar="FOLDER",
                      help="restrict the run to these mod folders; repeatable")
+    src.add_argument("--take-newer", action="append", default=None, metavar="FOLDER",
+                     help="install the newer GitHub release a run offered for this "
+                          "mod, over the copy on disk (kept in .backup/); 'all' "
+                          "takes every one offered. Repeatable")
 
     out = parser.add_argument_group("output")
+    out.add_argument("--decisions", metavar="PATH",
+                     help="decisions.json: your answer to each conflict the rules "
+                          "do not decide - an option id from --conflict-report, or "
+                          "accept with a reason. Applied to the plan before "
+                          "--resolve-conflicts, then re-checked; needs --plan-order")
     out.add_argument("-t", "--target", default="./Mods", help="install root (default: %(default)s)")
     out.add_argument("--json-report", metavar="PATH", help="write a machine-readable report")
     out.add_argument("--emit-pinned-manifest", metavar="PATH",
@@ -87,12 +113,67 @@ def build_parser() -> argparse.ArgumentParser:
                           "and sha256 filled in from this run - commit it to make "
                           "future runs reproducible (combine with --refresh to pin "
                           "mods already installed)")
+    out.add_argument("--events", metavar="PATH",
+                     help="write progress as JSON lines (schema 1: run_started, "
+                          "mod_started, download_progress, mod_extracting, "
+                          "mod_finished, "
+                          "run_finished) for a UI or a log collector; '-' for "
+                          "stdout, best with -q")
+    out.add_argument("--list-mods", metavar="PATH",
+                     help="write every mod the manifest, --catalogue and --mod-db "
+                          "know about as JSON (schema 1; '-' for stdout), then "
+                          "stop. Needs no WeiDU.log and downloads nothing")
+    out.add_argument("--describe-mods", metavar="PATH",
+                     help="write the components of every mod staged under --target, "
+                          "named as WeiDU names them (tp2 + .tra, in the first "
+                          "--language-preference the mod offers), as JSON (schema 1; "
+                          "'-' for stdout), then stop. Runs no WeiDU")
+    out.add_argument("--emit-bio-code", metavar="PATH",
+                     help="write what is wanted (-w, --selection or --bio-code) as a "
+                          "BIO-MODLIST-V1 share code ('-' for stdout); an imported "
+                          "code keeps its name, sources and configs")
+    out.add_argument("--emit-selection", metavar="PATH",
+                     help="write the --weidu-log input as a selection.json; with "
+                          "--check-only nothing else is fetched")
     out.add_argument("--plan-order", metavar="DIR",
                      help="write a rule-compliant WeiDU.log + WeiDU-BGEE.log pair "
                           "into DIR: the components you already have, sorted to "
                           "satisfy --rules and --order-catalogue. This is an "
                           "install PLAN for a fresh install, not a repair of a "
                           "game already installed")
+    out.add_argument("--resolve-conflicts", action="store_true",
+                     help="with --plan-order: remove from the PLAN the components "
+                          "an error-graded, non-speculative incompatibility rule "
+                          "pins - the remedy the conflict report names. Anything "
+                          "the rules do not decide is listed for you. Your own "
+                          "logs are never edited (ADR-0021)")
+    out.add_argument("--simulate", action="store_true",
+                     help="with --plan-order: walk the plan the way WeiDU will run "
+                          "it - BGEE, then BG2EE becoming EET - checking every "
+                          "staged mod's own tp2 constraints and EET's merge check; "
+                          "reports what WeiDU would refuse (ADR-0025)")
+    out.add_argument("--bgee-dir", metavar="DIR",
+                     help="with --plan-order, for EET: the BG:EE game the plan's "
+                          "WeiDU-BGEE.log installs onto. Verified with WeiDU's own "
+                          "GAME_IS markers and EET's requirements (SoD present or "
+                          "DlcMerger planned) - never written to (ADR-0026)")
+    out.add_argument("--bg2ee-dir", metavar="DIR",
+                     help="with --plan-order, for EET: the clean BG2:EE game that "
+                          "becomes EET; verified the same way")
+    out.add_argument("--emit-installer", action="store_true",
+                     help="with --plan-order: also write install scripts (sh and "
+                          "Windows cmd) into the plan directory that hand the plan "
+                          "to mod_installer + WeiDU - for EET, both games in one "
+                          "run. Written for you to run; never run by iemod-fetch "
+                          "(ADR-0022)")
+    out.add_argument("--language-preference", metavar="LANGS",
+                     help="with --plan-order: install every mod in the first of "
+                          "these languages it offers, e.g. it_IT,en_US (or "
+                          "italian,english). Read from each staged mod's tp2; a "
+                          "mod offering none keeps its logged language (ADR-0024)")
+    out.add_argument("--game-language", default=None, metavar="CODE",
+                     help="game language the installer scripts pass on (default: "
+                          "the first --language-preference, else en_US)")
     out.add_argument("--conflict-report", metavar="PATH",
                      help="write the full component-level conflict report as "
                           "JSON: which component of which mod fights which "
@@ -103,6 +184,26 @@ def build_parser() -> argparse.ArgumentParser:
                           "observations nobody has traced, and they outnumber "
                           "the verified findings")
     out.add_argument("-q", "--quiet", action="store_true")
+
+    bak = parser.add_argument_group(
+        "game folder backup (ADR-0042; each of these runs alone, then stops)")
+    bak.add_argument("--backup", metavar="GAME_DIR",
+                     help="back the game folder up before installing: override/, the "
+                          "lang/*/dialog*.tlk and the files at its root are copied with "
+                          "their sha256, everything else is listed")
+    bak.add_argument("--backup-to", metavar="DIR",
+                     help="where --backup writes (default: GAME_DIR-iemod-backups beside "
+                          "the game folder)")
+    bak.add_argument("--verify-backup", metavar="BACKUP",
+                     help="check every copy in a backup against its sha256")
+    bak.add_argument("--restore-backup", metavar="BACKUP",
+                     help="show what restoring the backup would do; with --apply, do it. "
+                          "Nothing is deleted: what is in the way is moved into the "
+                          "backup's displaced-<time>/ folder")
+    bak.add_argument("--restore-to", metavar="GAME_DIR",
+                     help="the game folder to restore (default: the one backed up)")
+    bak.add_argument("--apply", action="store_true",
+                     help="with --restore-backup: restore, not only show the plan")
 
     beh = parser.add_argument_group("behaviour")
     beh.add_argument("--include-optional", action="store_true",
@@ -160,6 +261,26 @@ def build_parser() -> argparse.ArgumentParser:
     sec.add_argument("--timeout", type=int, default=45, metavar="SECONDS")
     sec.add_argument("--retries", type=int, default=3, metavar="N")
 
+    data = parser.add_argument_group(
+        "community data (lcc-docs, BWS-NG, krion64; ADR-0032)",
+        "Kept in a cache and refreshed automatically when a run starts, at most "
+        "once per --data-max-age hours; used for --catalogue, --rules, --mod-db "
+        "and --order-catalogue whenever those are not given")
+    data.add_argument("--update-data", action="store_true",
+                      help="refresh the cached data now, whatever its age, and stop")
+    data.add_argument("--no-update-data", action="store_true",
+                      help="do not contact GitHub for the data; use the cache as it is "
+                           "(also: IEMOD_NO_UPDATE_DATA=1)")
+    data.add_argument("--data-dir", metavar="DIR",
+                      help="where the cache lives (default: $IEMOD_DATA_DIR, else the "
+                           "per-user cache directory, e.g. %%LOCALAPPDATA%%\\iemod-fetch\\data "
+                           "or ~/.cache/iemod-fetch/data)")
+    data.add_argument("--data-max-age", type=int, default=24, metavar="HOURS",
+                      help="refresh when the cache was last checked longer ago than "
+                           "this (default: %(default)s)")
+    data.add_argument("--no-default-data", action="store_true",
+                      help="do not use the cached data in place of flags not given")
+
     auth = parser.add_argument_group("github credential (optional; raises rate limits)")
     auth.add_argument("--token-file", metavar="PATH",
                       help="read the token from a file (preferred over env vars)")
@@ -182,7 +303,7 @@ def main(argv=None, stream=sys.stdout) -> int:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
     try:
-        return _run(args, stream, config)
+        return api.run(api.Settings.from_namespace(args), stream, config).exit_code
     except ConfigError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
@@ -192,184 +313,6 @@ def main(argv=None, stream=sys.stdout) -> int:
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return 130
-
-
-@dataclass
-class RuleAnalysis:
-    """
-    What the rule pass produced, passed explicitly to whatever needs it next.
-
-    This used to be stashed on `_check_rules.last`, a function attribute, so the
-    order planner and the conflict report could reach it. That is global mutable
-    state dressed as a cache: it makes the call order load-bearing and invisible,
-    it cannot be constructed in a test without calling the CLI, and mypy is right
-    to refuse it. An empty instance means "no rules were loaded", which every
-    consumer already handles.
-    """
-    ruleset: Optional[RuleSet] = None
-    context: Optional[Context] = None
-    installs: Sequence[Install] = ()
-    findings: List[dict] = field(default_factory=list)
-
-    def __bool__(self) -> bool:
-        return self.ruleset is not None
-
-
-def _check_rules(args, installed, stream) -> RuleAnalysis:
-    """
-    Check each WeiDU log against the rule set, separately.
-
-    One log is one game install: a mod in the BGEE log neither conflicts with
-    nor orders against a mod in the EET log, so the logs are never merged for
-    this.
-    """
-    if not args.rules or not args.weidu_log:
-        return RuleAnalysis()
-    ruleset = RuleSet.load(args.rules)
-    context = _rule_context(args, installed, ruleset, stream)
-    installs = []
-    for spec in args.weidu_log:
-        path, game = split_log_spec(spec)
-        installs.append(Install.from_log(parse_weidu_files([(path, game)]),
-                                         label=os.path.basename(path)))
-    # `rule` is the Rule object the finding drilled down from - useful in
-    # process, not serialisable, and the conflict report carries it properly.
-    findings = [{k: v for k, v in vars(f).items() if k != "rule"}
-                for f in check_all(installs, ruleset, context)]
-    if not args.quiet:
-        age = ""
-        if ruleset.updated:
-            age = f", updated {ruleset.updated}"
-            if (ruleset.age_days or 0) > 180:
-                age += f" — {ruleset.age_days} days old, verify before acting"
-        undirected = (f", {ruleset.undirected} order-sensitive pair(s) not "
-                      f"evaluated (no direction recorded)"
-                      if ruleset.undirected else "")
-        print(f"  rules       : {len(ruleset)} loaded{age}; "
-              f"{len(findings)} finding(s){undirected}", file=stream)
-    for warning in ruleset.warnings[:5]:
-        print(f"[warning] {warning}", file=sys.stderr)
-    return RuleAnalysis(ruleset=ruleset, context=context, installs=installs,
-                        findings=findings)
-
-
-def _log_roles(specs):
-    """
-    Decide which input log is the EET install and which is the pre-EET BG1 one.
-
-    An EET setup is two installs, and the plan has to keep them apart. The log
-    that installs the EET core IS the merged-game log; the other is the BG1:EE
-    phase. `-w PATH:EET` states it outright; otherwise it is inferred from the
-    log's own contents, never from the filename - `WeiDUBGEE.log`,
-    `weidu-bgee.log` and `bg1.log` are all names people actually use.
-    """
-    roles, eet_logs = [], []
-    for spec in specs:
-        path, game = split_log_spec(spec)
-        parsed = parse_weidu_files([(path, game)])
-        role = EET_LOG if (parsed.game or "").upper() == "EET" else PRE_EET_LOG
-        if role == EET_LOG:
-            eet_logs.append(path)
-        roles.append((path, role))
-
-    if len(eet_logs) > 1:
-        raise ConfigError(
-            "two logs both look like the EET install (" + ", ".join(eet_logs) +
-            "). Name the pre-EET one explicitly, e.g. -w WeiDUBGEE.log:BGEE")
-    if not eet_logs and len(roles) > 1:
-        raise ConfigError(
-            "no log installs the EET core, so which one is the merged game is a "
-            "guess. Say so explicitly: -w WeiDU.log:EET")
-    return roles
-
-
-def _plan_order(args, analysis: "RuleAnalysis", stream):
-    """Build the rule-compliant install order, if asked for."""
-    if not getattr(args, "plan_order", None):
-        return None
-    if not args.weidu_log:
-        raise ConfigError("--plan-order needs at least one --weidu-log to order")
-    if not args.order_catalogue:
-        raise ConfigError(
-            "--plan-order needs --order-catalogue PATH: a krion64 data directory "
-            "(categories.json + mods/*.json). Without it there is no reference "
-            "order to sort towards, and the tool will not invent one")
-
-    index = OrderIndex.load(args.order_catalogue)
-    # Reuse the ruleset the checker just built: it carries the per-mod ordering
-    # metadata read from installed .iemod/.ini files on top of --rules. Planning
-    # against a thinner ruleset than the check uses would emit a plan the very
-    # next check rejects.
-    ruleset, context = analysis.ruleset, analysis.context
-    if ruleset is None:
-        ruleset = RuleSet.load(args.rules) if args.rules else RuleSet()
-    specs = _log_roles(args.weidu_log)
-    plan = plan_order(specs, index, ruleset, context,
-                      include_optional=args.include_optional,
-                      reassign_phase=args.reassign_phase)
-    written = plan.write(args.plan_order)
-    if not args.quiet:
-        print(f"  order plan  : {index.origin} "
-              f"({len(index)} mods, {len(index.categories)} categories); "
-              f"{plan.edges} ordering constraint(s)", file=stream)
-        for path in written:
-            print(f"                wrote {path}", file=stream)
-    return plan
-
-
-def _conflict_report(args, analysis: "RuleAnalysis", plan):
-    """
-    The component-level view: what actually fights what, and the smallest fix.
-
-    Ordering answers "in what sequence"; this answers "and what still clashes
-    once the sequence is right". Findings the plan already resolves are marked
-    as such instead of being reported twice.
-    """
-    if analysis.ruleset is None or not analysis.installs:
-        return None
-    report = build_conflict_report(analysis.installs, analysis.ruleset,
-                                   analysis.context, plan)
-    if args.conflict_report:
-        report.write_json(args.conflict_report)
-    return report
-
-
-def _rule_context(args, installed, ruleset, stream):
-    """
-    Gather what is needed to judge whether a rule is still current: the version
-    of each installed mod, the versions the rules were built against, mods that
-    ship their own ordering metadata, and any verified suppressions.
-    """
-    target = os.path.abspath(args.target)
-    context = Context(suppressions=load_suppressions(args.suppress),
-                      include_optional=args.include_optional)
-
-    if args.mod_db:
-        context.baseline = ModDatabase.load(args.mod_db)
-        if not args.quiet:
-            print(f"  mod database: {len(context.baseline)} mods "
-                  f"(versions the rules were written against)", file=stream)
-
-    state = State.load(target)
-    for key, entry in state.mods.items():
-        if entry.get("mod_version"):
-            context.installed_versions[normalize_key(key)] = entry["mod_version"]
-
-    # Anything already on disk can be read directly, which is better than the
-    # state file: it reflects what is installed now, not what we last fetched.
-    for mod in installed.mods.values():
-        folder_key = normalize_key(mod.folder)
-        mod_dir = os.path.join(target, mod.folder)
-        if not os.path.isdir(mod_dir):
-            continue
-        info = read_mod_tp2(mod_dir, mod.tp2_file)
-        if info and info.version:
-            context.installed_versions[folder_key] = info.version
-        meta = find_metadata(mod_dir, mod.folder)
-        if meta and meta.has_order_hints:
-            context.mods_with_own_ini.add(folder_key)
-            ruleset.add_metadata_order(mod.folder, meta.before, meta.after)
-    return context
 
 
 def _parse_with_config(parser, argv):
@@ -391,131 +334,3 @@ def _parse_with_config(parser, argv):
         if getattr(args, key, None) is None:
             setattr(args, key, list(config.values.get(key) or []))
     return args, config
-
-
-def _run(args, stream, config=None) -> int:
-    target = os.path.abspath(args.target)
-    manifest = load_manifest(args.manifest, allow_http=args.allow_http)
-
-    if args.weidu_log:
-        installed = parse_weidu_files([split_log_spec(spec) for spec in args.weidu_log])
-    else:
-        installed = ParsedLog()
-        if not args.all_manifest_entries:
-            raise ConfigError(
-                "no --weidu-log given. Pass at least one WeiDU.log to define which "
-                "mods are wanted, or --all-manifest-entries to fetch the whole "
-                "catalogue.")
-
-    plan = build_plan(installed, manifest, aliases=load_aliases(args.aliases),
-                      include_manifest_only=args.all_manifest_entries or not args.weidu_log,
-                      accept_suggestions=args.accept_suggestions)
-
-    if args.only:
-        wanted = {name.lower() for name in args.only}
-        plan.items = [i for i in plan.items if i.folder.lower() in wanted]
-        plan.unresolved = [i for i in plan.unresolved if i.folder.lower() in wanted]
-
-    analysis = _check_rules(args, installed, stream)
-    findings = analysis.findings
-    order_plan = _plan_order(args, analysis, stream)
-    conflict_report = _conflict_report(args, analysis, order_plan)
-
-    if args.check_only:
-        report = RunReport(findings=findings)
-        if not args.quiet:
-            render_summary(report, target, stream=stream)
-            if order_plan is not None:
-                render_plan_summary(order_plan, args.plan_order, stream)
-            if conflict_report is not None:
-                render_conflict_report(conflict_report, stream,
-                                       show_notes=args.show_advisories)
-                if args.conflict_report:
-                    print(f"  full report written to {args.conflict_report}",
-                          file=stream)
-        if args.json_report:
-            report.write_json(args.json_report)
-        return 1 if report.blocking_findings else 0
-
-    credential = resolve_credential(token_file=args.token_file,
-                                    use_gh=not args.no_gh_cli,
-                                    use_git_credential=not args.no_git_credential,
-                                    oauth_client_id=args.oauth_client_id)
-    client = HttpClient(token=credential.token, allow_http=args.allow_http,
-                        timeout=args.timeout, max_bytes=args.max_bytes,
-                        retries=args.retries)
-
-    for warning in (config.warnings if config else []):
-        print(f"[warning] {warning}", file=sys.stderr)
-
-    if not args.quiet:
-        print(f"iemod-fetch {__version__}", file=stream)
-        if config is not None and config.path:
-            print(f"  config      : {config.path} ({len(config.values)} setting(s))",
-                  file=stream)
-        print(f"  catalogue   : {args.manifest} ({len(manifest.sources)} entries)", file=stream)
-        games = sorted({m.game for m in installed.mods.values() if m.game})
-        print(f"  weidu logs  : {', '.join(args.weidu_log) or '(none)'} "
-              f"({len(installed.mods)} mods, {installed.component_count} components"
-              f"{'; game: ' + ', '.join(games) if games else ''})", file=stream)
-        print(f"  target      : {target}", file=stream)
-        print(f"  credential  : {credential.describe()}", file=stream)
-        print(f"  to process  : {len(plan.items)} resolved, "
-              f"{len(plan.unresolved)} unresolved", file=stream)
-        if args.dry_run:
-            print("  MODE        : dry run, nothing will be written", file=stream)
-        print(file=stream)
-
-    os.makedirs(target, exist_ok=True)
-    options = Options(target_dir=target, workers=args.workers, dry_run=args.dry_run,
-                      force=args.force, allow_exe=args.allow_exe,
-                      accept_offsite=args.accept_offsite, refresh=args.refresh,
-                      discovery_attempts=args.discovery_attempts)
-
-    catalogue = CatalogueSet.load(args.catalogue)
-    if catalogue and not args.quiet:
-        print(f"  catalogues  : {len(args.catalogue)} file(s), {len(catalogue)} mods",
-              file=stream)
-
-    org_index = None
-    if not args.no_discovery:
-        owners = load_trusted_owners(args.trusted_owners, manifest=manifest,
-                                     extra=args.trusted_owner)
-        org_index = OwnerIndex(
-            client=client, owners=owners,
-            cache_path=args.owner_cache or os.path.join(target, ".owner-index.json"))
-        if not args.quiet:
-            print(f"  discovery   : enabled over {len(owners)} trusted owner(s)",
-                  file=stream)
-    runner = Runner(client, options, stream=None if args.quiet else stream,
-                    org_index=org_index, catalogue=catalogue or None)
-    report = runner.run(plan)
-    report.findings = findings
-
-    if not args.quiet:
-        render_summary(report, target, stream=stream)
-        if order_plan is not None:
-            render_plan_summary(order_plan, args.plan_order, stream)
-        if conflict_report is not None:
-            render_conflict_report(conflict_report, stream,
-                                   show_notes=args.show_advisories)
-            if args.conflict_report:
-                print(f"  full report written to {args.conflict_report}",
-                      file=stream)
-    if args.emit_pinned_manifest:
-        payload = build_pinned_manifest(manifest, report.records,
-                                        state=runner.state.mods)
-        write_pinned_manifest(args.emit_pinned_manifest, payload)
-        if not args.quiet:
-            print(f"\nPinned manifest written to {args.emit_pinned_manifest} "
-                  f"({payload['pinned_entries']} of {len(payload['mods'])} entries "
-                  f"carry a sha256)", file=stream)
-            if args.dry_run:
-                print("  note: --dry-run downloads nothing, so only release_tag/asset "
-                      "could be pinned. Re-run without --dry-run to pin sha256.",
-                      file=stream)
-    if args.json_report:
-        report.write_json(args.json_report)
-        if not args.quiet:
-            print(f"\nJSON report written to {args.json_report}", file=stream)
-    return report.exit_code(allow_manual=args.allow_manual)

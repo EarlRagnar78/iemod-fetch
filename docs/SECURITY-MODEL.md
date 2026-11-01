@@ -44,6 +44,24 @@ Windows silently strips those, so `evil.` and `evil` are the same file there.
 A property test asserts that anything it accepts, joined onto a root, stays
 under that root.
 
+**A shared list is a stranger's text.** A BIO share code (`--bio-code`) arrives
+pasted from a chat and was written by someone else. Its size is capped before
+and after decompression (a zlib bomb stops at 32 MiB), and every tp2 path in
+its WeiDU logs goes through `selection.json`'s own checks before anything
+uses it: `~../../evil.tp2~` is refused, because WeiDU would otherwise run a
+tp2 from outside the mods folder. Project Infinity lists (`--pi-list`) take
+their tp2 paths from the staged mods or from krion64's records, and go through
+the same checks. An author's `mod-forge.json` is read as data, size-capped,
+and only into the rule set.
+
+**A game folder is read, never written, by the limit check.** When a WeiDU.log
+sits beside a `chitin.key`, KITLIST.2DA, SPELL.IDS, ADD_SPELL.IDS and
+SPLSTATE.IDS are read from override/ or from the BIFF the key names. Each read
+is size-capped (64 MiB key, 16 MiB resource), only uncompressed `BIFFV1` is
+parsed, and a BIFF path from the key with a `..`, a drive or a stream part is
+not followed - the key is the game's, but a damaged one must not make the
+tool read elsewhere.
+
 ## Boundary 2 — the network
 
 | Control | What it stops |
@@ -83,10 +101,22 @@ names you approved and the paths the library writes are two separate facts.
 Extracting one entry at a time and re-resolving keeps them the same fact, and
 costs nothing measurable.
 
-External tools (7-Zip, WinRAR) are used for `.rar` and `.7z`. They are invoked
-with an argument **list**, never a shell string, never with remote input in the
-argv, and their output is extracted into a scratch directory that is then walked
-by the same audit as everything else.
+External tools are used for `.rar` and `.7z` (ADR-0047): libarchive's bsdtar
+(Windows' own `System32\tar.exe`), unar, and a 7-Zip or WinRAR the player has
+installed - none is shipped. They are invoked with an argument **list**, never
+a shell string. Each one extracts into a scratch folder of its own, deleted
+when it fails, so a tool that wrote and then failed leaves nothing for the
+next; only a tool that exits 0 has its files moved into place, and the result
+is walked by the same audit as everything else. Since 2.1.0 the archive is first **listed** with `7z l -slt` and held to
+the zip/tar rules — member names, entry count, total size — before the
+unpacker writes anything. Without 7-Zip there is no listing, and the
+post-extraction audit is what remains.
+
+The archive's own file name is remote input too (a `Content-Disposition`
+header, or a URL path). It is reduced to one safe path component, splitting on
+both `/` and `\`, before it is joined onto the work directory; anything else
+becomes `<folder>.bin`, which is harmless because the type is identified by
+magic bytes.
 
 ## Boundary 4 — writing to disk
 
@@ -97,6 +127,9 @@ by the same audit as everything else.
   moved into place. There is deliberately no "the archive has one `.tp2`, so it
   must be right" heuristic; that is the class of guessing ADR-0005 forbids.
 - The move into place is atomic where the filesystem allows it.
+- The wizard writes one file: `iemod-fetch.ini` in the project folder the user
+  chose, only known options, written whole and swapped in (`config.write_values`).
+  Other options and sections in that file are kept; comments are not.
 
 ## Credentials
 
@@ -116,6 +149,13 @@ misconfigured helper hangs the helper and not the run.
 **The mods themselves.** A `.tp2` is a program and WeiDU executes it. This tool
 stages files; it does not sandbox, review, or vouch for mod content. Everything
 above protects the *fetching*. If you install a malicious mod, none of it helps.
+
+**The installer scripts.** `--emit-installer` writes `install-eet.sh` /
+`.cmd`; iemod-fetch never runs them, nor WeiDU, nor mod_installer. They are
+short and meant to be read before running. Running one executes every `.tp2`
+in the plan through WeiDU, with your user's rights, on the game folders you
+name — the same trust you extend to any mod you install by hand. mod_installer
+is a third-party binary (GPL-3.0); obtain it from its own releases page.
 
 **Upstream rule data.** BWS-NG, krion64 and LCC JSON is read as data and every
 value is coerced to a string before use. But their *claims* are theirs. The

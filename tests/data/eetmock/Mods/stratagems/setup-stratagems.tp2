@@ -1,0 +1,13 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [4100, 5900] only, verbatim from https://github.com/Gibberlings3/SwordCoastStratagems @ 447cfc8 (stratagems/setup-stratagems.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @20013 DESIGNATED 4100 GROUP @4
+REQUIRE_PREDICATE (GAME_IS ~tutu tutu_totsc bgee bg2ee eet iwdee~ || MOD_IS_INSTALLED ~setup-bg2fixpack.tp2~ ~0~ ) @24124
+REQUIRE_PREDICATE GAME_IS "iwdee bgee bg2ee eet" @16002
+REQUIRE_PREDICATE !GAME_IS ~iwdee~ @50009
+FORBID_COMPONENT "setup-cdtweaks.tp2" 2370 @50010
+FORBID_COMPONENT "setup-cdtweaks.tp2" 2372 @50010
+REQUIRE_PREDICATE !(MOD_IS_INSTALLED ~stratagems/setup-stratagems.tp2~ 4115) && !IS_AN_INT stratagems_component_4115_installed && !(MOD_IS_INSTALLED ~dw_talents/dw_talents.tp2~ 90100) @15998
+FORBID_COMPONENT "dw_talents.tp2" 60300 @50015
+BEGIN @16024 DESIGNATED 5900 GROUP @6
+REQUIRE_PREDICATE (GAME_IS ~tutu tutu_totsc bgee bg2ee eet iwdee~ || MOD_IS_INSTALLED ~setup-bg2fixpack.tp2~ ~0~ ) @24124

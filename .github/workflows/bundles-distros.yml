@@ -1,0 +1,105 @@
+# The Linux bundles on the distributions players run (ADR-0056): the wizard's
+# and the command line's zips of a published release, started inside
+# fedora (Bazzite's base), archlinux (CachyOS's base), ubuntu 24.04 and
+# latest, and debian trixie (the floor, also gated in release.yml).
+#
+# Measured, not assumed: in each fresh container tools/distro_libs.sh reads
+# with ldd which system libraries the bundle's Qt links to and the system
+# lacks - for a headless start (offscreen), an X11/XWayland desktop (xcb) and
+# a native Wayland session - asks the distro's own package index which
+# package ships each, installs them, and starts the wizard offscreen. That
+# list is what docs/GUIDA-TEST-REALE.md and the README tell a player to install.
+#
+# A separate workflow, not a job of release.yml: it measures five systems
+# whose images change under it, and a library one of them renames must not
+# hold a release back. release.yml keeps gating the floor, Debian trixie,
+# and starts this workflow once it has published (its own publish uses
+# github.token, whose events start no workflow).
+name: Bundles on the target distros
+
+on:
+  # a release published by hand; release.yml's own dispatches this
+  release:
+    types: [published]
+  # a change to this check measures the latest release with it
+  pull_request:
+    paths: [".github/workflows/bundles-distros.yml", "tools/distro_libs.sh"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to measure (empty: the latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bundles-distros-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  distro:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["fedora:latest", "archlinux:latest", "ubuntu:24.04", "ubuntu:latest",
+                "debian:trixie"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: The release's Linux zips
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          mkdir zips gui cli
+          if [ -n "$TAG" ]; then
+            gh release download "$TAG" -D zips -p 'iemod-fetch-gui-linux-*.zip' -p 'iemod-fetch-cli-linux-*.zip'
+          else
+            gh release download -D zips -p 'iemod-fetch-gui-linux-*.zip' -p 'iemod-fetch-cli-linux-*.zip'
+          fi
+          ls -l zips
+          unzip -q zips/iemod-fetch-gui-linux-*.zip -d gui
+          unzip -q zips/iemod-fetch-cli-linux-*.zip -d cli
+      - name: Measure inside the container
+        env:
+          IMAGE: ${{ matrix.image }}
+        shell: bash            # -o pipefail: the script's exit is not lost to tee
+        run: |
+          image=""
+          # Docker Hub, else the ECR mirror of Docker's library: both limit
+          # anonymous pulls
+          for candidate in "$IMAGE" "public.ecr.aws/docker/library/$IMAGE"; do
+            if docker pull -q "$candidate"; then image="$candidate"; break; fi
+          done
+          test -n "$image" || { echo "::error::no registry gave $IMAGE"; exit 1; }
+          docker run --rm -v "$PWD/gui:/gui:ro" -v "$PWD/cli:/cli:ro" \
+            -v "$PWD/tools/distro_libs.sh:/distro_libs.sh:ro" "$image" \
+            sh /distro_libs.sh /gui /cli | tee measured.txt
+      - name: Say what was measured
+        if: always()
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          {
+            echo "### $IMAGE"
+            echo '```'
+            grep -E '^(DISTRO|CLI|CHECK|MISSING|PACKAGE|STILL|INSTALL|PREPARE)' measured.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '^STILL xcb' measured.txt; then
+            echo "::warning::$IMAGE: a desktop (xcb) library is still missing after its packages"
+          fi
+          # the start that matters: the wizard offscreen once its packages are
+          # in, and the command line as it is
+          grep -q '^CHECK after ok' measured.txt
+          grep -q '^CLI ok' measured.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: distro-libs-${{ strategy.job-index }}
+          path: measured.txt

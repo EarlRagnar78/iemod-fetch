@@ -1,7 +1,6 @@
 version: 2
 updates:
-  # The developer toolchain is the only dependency surface there is: the shipped
-  # tool has none (ADR-0002).
+  # The developer toolchain (pyproject.toml's extras).
   - package-ecosystem: pip
     directory: /
     schedule: { interval: weekly, day: monday }
@@ -10,12 +9,38 @@ updates:
       dev-tooling:
         patterns: ["*"]
         update-types: [minor, patch]
+    # This entry also reads pyproject's runtime dependencies (it opened #68,
+    # filelock 3 -> 4): the same hold as below.
+    ignore:
+      - dependency-name: filelock
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"
+
+  # The runtime's libraries, pinned by hash (ADR-0043): their own pull request,
+  # since they ship to players. publicsuffixlist releases with every change to
+  # the list, so weekly and grouped.
+  - package-ecosystem: pip
+    directory: /requirements
+    schedule: { interval: weekly, day: monday }
+    groups:
+      runtime:
+        patterns: ["*"]
+    # A new major filelock is moved to by hand, with a test run (ADR-0043).
+    ignore:
+      - dependency-name: filelock
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "deps(runtime)"
 
   # An unpinned action is remote code with write access to the release job.
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
+    groups:
+      actions:
+        patterns: ["*"]
     commit-message:
       prefix: "ci"
+  # Not covered here: the WeiDU zip and the mod_installer commit pinned in
+  # ci.yml. upstream-versions.yml watches those (ADR-0028).

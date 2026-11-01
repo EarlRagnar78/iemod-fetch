@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/decisions-v1.schema.json",
+  "title": "iemod-fetch decisions, version 1",
+  "description": "--decisions: the player's answer to conflicts the rules do not decide. iemod_fetch/decisions.py is the authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decisions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finding"
+        ],
+        "properties": {
+          "finding": {
+            "type": "string",
+            "pattern": "^conflict-"
+          },
+          "choose": {
+            "type": "string",
+            "pattern": "^option-"
+          },
+          "accept": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "choose"
+            ]
+          },
+          {
+            "required": [
+              "accept"
+            ]
+          }
+        ]
+      }
+    },
+    "ignored_order": {
+      "description": "Rows of the wizard's install order whose broken order rules the player ignores (ADR-0033, GUI-AUDIT M5b item 33). The command line only checks it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unit",
+          "after",
+          "rules",
+          "why"
+        ],
+        "properties": {
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "after": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

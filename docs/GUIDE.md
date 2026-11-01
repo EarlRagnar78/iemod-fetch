@@ -13,16 +13,14 @@ Project Infinity still does the WeiDU ordering and component selection.
 
 ```bash
 tar xzf iemod-fetch.tar.gz && cd iemod-fetch
-python3 -m pytest -q                 # 290 passed - confirms the copy is sound
-python3 build.py                     # -> ./iemod-fetch.pyz  (34 KB, no deps)
+python3 -m pytest -q                 # all pass (GUI tests skip without Qt) - the copy is sound
+python3 build.py                     # -> ./iemod-fetch.pyz  (about 200 KB, no deps)
 ```
 
-Optional but recommended — the community catalogue that fills catalogue gaps
-and provides health warnings:
-
-```bash
-git clone --depth 1 https://github.com/RiwsPy/lcc-docs ~/lcc-docs
-```
+The community catalogue that fills catalogue gaps and provides health
+warnings (lcc-docs), and the rule databases (BigWorldSetup-NG, krion64), need
+no setup: the first run fetches them into a cache and later runs keep it
+current (§9.1).
 
 ### GitHub credential
 
@@ -173,6 +171,116 @@ URLs and new unknown fields all work. The one thing that needs you is a
 **renamed `tp2` key** — it breaks the join and any alias pointing at it, and is
 reported as unresolved with the renamed entry offered as a suggestion.
 
+## 6. Without a WeiDU.log: selection.json
+
+A selection lists the mods, components and languages you want, one install or
+two for EET (`BGEE` then `EET`), in install order. It says exactly what a
+WeiDU.log says, and it is what the future GUI saves (ADR-0030). The format is
+`schemas/selection-v1.schema.json`.
+
+```json
+{"schema_version": 1,
+ "installs": [
+   {"game": "BGEE", "components": [
+      {"tp2": "eefixpack/setup-eefixpack.tp2", "component": 0, "language": 0}]},
+   {"game": "EET", "components": [
+      {"tp2": "EET/EET.tp2", "component": 0, "language": 0,
+       "label": "EET core (resource importation)"}]}]}
+```
+
+```bash
+# Use it instead of -w, for every run mode (fetch, --check-only, --plan-order):
+python3 iemod-fetch.pyz --selection selection.json -t ./Mods
+# Turn existing logs into one, without fetching anything:
+python3 iemod-fetch.pyz -w WeiDU.log:EET -w WeiDUBGEE.log:BGEE \
+    --emit-selection selection.json --check-only
+```
+
+To see what there is to choose from, `--list-mods` merges every source given -
+the manifest, each `--catalogue` (lcc-docs) and `--mod-db` (BWS-NG or krion64)
+- into one entry per mod: games, categories, quality rating, status, last
+update, version, advisories, and each source's URLs and sha256. It needs no
+WeiDU.log and downloads nothing. The format is `schemas/mods-v1.schema.json`.
+
+```bash
+python3 iemod-fetch.pyz --list-mods mods.json \
+    -c lcc-docs/db/mods.json --mod-db BigWorldSetup-Next-Generation/data/mods
+```
+
+With the full lcc-docs catalogue and the BWS-NG database that is about 1,800
+mods in under a second. `-` writes to standard output.
+
+Each mod also carries `latest`: the newest version any source names - the
+mod's latest GitHub release (krion64's `version_cache.json`, `--releases`,
+from the data cache by default), the BWS-NG database, krion64's records - with
+which source named it. Give `-w WeiDU.log` too and each installed mod says
+`installed` and `update_available`; a normal run with `-w` prints the same as
+a short notice:
+
+```text
+  updates     : 2 of 41 installed mods with a version have a newer one
+    eet                      v14.0 -> v14.1 (github release, 2025-04-07)
+    SirinesCall              v16.5.1 -> 16.5.2 (BigWorldSetup-Next-Generation)
+```
+
+`update_available` is `null`, not `false`, when either version is unknown or
+the two cannot be ranked (`EAOB.9` against `v1_Beta260923`). A notice can be
+wrong in one known way: an author who tags a release without bumping the
+tp2's VERSION (EET's v14.1 tag, VERSION v14.0) is reported as having an
+update after installing it.
+
+For a progress bar, `--events events.jsonl` (or `-` for standard output,
+best with `-q`) writes one JSON object per line as the run goes -
+`run_started`, `mod_started`, `download_progress`, `mod_extracting` (the
+download is complete and verified; the archive is being unpacked and checked),
+`mod_finished`, `run_finished` - in the format of `schemas/events-v1.schema.json`. Ctrl-C stops
+the downloads in flight at their next chunk; the mods reached are reported as
+`cancelled` and the exit code is 130.
+
+Once mods are staged, `--describe-mods components.json` lists every tp2 under
+`--target` with its languages and its components, named exactly as WeiDU names
+them in `--list-components` and WeiDU.log (`Group -> Name: VERSION`), in the
+first `--language-preference` the mod offers. It reads the tp2 and its `.tra`
+files and runs no WeiDU. A name WeiDU itself could not resolve is printed as
+WeiDU prints it (`UNDEFINED STRING:   @N`) and marked `"resolved": false`.
+Each component also says what a selection screen needs to group and constrain
+it, with WeiDU's own names: `subgroup` (its SUBCOMPONENT: options that exclude
+each other), `forced` (one of them must be chosen), `groups` (the categories
+the mod files it under), `labels` (names that survive renumbering; Project
+Infinity uses them) and `deprecated` (WeiDU no longer offers it). The format is
+`schemas/components-v1.schema.json`.
+
+```bash
+python3 iemod-fetch.pyz --describe-mods - --target Mods --language-preference it_IT,en_US -q
+```
+
+A list shared from Born2BSalty's Infinity Orchestrator (BIO) works the same
+way. Save the `BIO-MODLIST-V1:...` code in a file and pass it with
+`--bio-code`: its WeiDU logs become what is wanted (BGEE then EET for an EET
+list). `--emit-bio-code` writes any input - `-w`, `--selection` or a BIO code -
+back as a code BIO imports; a code that came from BIO keeps its name, author,
+download overrides, pinned refs and mod configuration files, which this tool
+does not use but does not drop either.
+
+```bash
+python3 iemod-fetch.pyz --bio-code shared.bio --emit-selection selection.json --check-only
+python3 iemod-fetch.pyz -w WeiDU.log:EET -w WeiDUBGEE.log:BGEE --emit-bio-code - --check-only -q
+```
+
+A Project Infinity list, or the `install-EET.txt` Infinity Mod Forge exports,
+works the same way with `--pi-list list.txt:GAME`. Each line is
+`LABEL;description` or `folder:number;description`; the LABEL is found in the
+staged mods' tp2s first and in krion64's records (from the data cache) second.
+Fetch the mods once with the list's krion64 resolution, then run again: the
+second run resolves every LABEL from the tp2s themselves. A line nothing
+resolves stops the run with the line number - the description is never used
+to guess. The whole list is one install; for EET, `--reassign-phase` moves
+the BG:EE mods to the BGEE log.
+
+`--selection`, `--bio-code`, `--pi-list` and `-w` are never given together. A wrong file is refused with
+where and why: an unknown key, a game that is not one, a tp2 path that leaves
+its folder, or `schema_version` other than 1.
+
 ---
 
 ## Reading the output
@@ -212,13 +320,9 @@ configuration. `--allow-manual` makes a partially-manual run exit 0.
 build can be checked offline — no network, no downloads:
 
 ```bash
-git clone --depth 1 https://github.com/Selphira/bigworldsetup-next-generation ~/bws-ng
-git clone --depth 1 https://github.com/krion64/krion64.github.io ~/krion
-
-python3 -m iemod_fetch --check-only \
-    -w WeiDU.log -w WeiDU-BGEE.log:BGEE \
-    --rules ~/bws-ng/data/rules --rules ~/krion/data/mods \
-    --mod-db ~/bws-ng/data/mods
+python3 -m iemod_fetch --check-only -w WeiDU.log -w WeiDU-BGEE.log:BGEE
+# the rules (BWS-NG + krion64) and the mod database come from the data cache;
+# --rules / --mod-db with your own paths still win
 ```
 
 Two community sources are understood and the format is detected per file:
@@ -311,16 +415,16 @@ The default ceiling is 2 GiB because real mods reach it — BGGO is 1.4 GB.
 | `already exists; re-run with --force` | You have a mod directory the tool did not create. `--force` moves it to `Mods/.backup/<folder>.<timestamp>` — it is never deleted. |
 | `archive contains .tp2 files [...] but none of them is 'X.tp2'` | The download is not the mod you asked for. Working as intended — do not override it; find the right source. |
 | `is a Windows executable ... never run` | A self-extracting installer. `--allow-exe` unpacks it with 7z/unar; it is never executed. |
-| `no unpacker is installed` | `apt install p7zip-full` (or `unar`). |
+| `no unpacker is installed` | `apt install libarchive-tools unar` (Debian/Ubuntu), `brew install unar` (macOS). |
 | `only off-site links found` | The landing page's download link leaves the site. Review it, then pin it in the manifest, or `--accept-offsite`. |
 | A mod resolves to the wrong repo | Pin it: add `"github"` and `"asset"` to its manifest entry. |
 | Run is slow | `-j 8`. Owner listings cache for 24h in `Mods/.owner-index.json`. |
 | `Content-Length … exceeds … byte ceiling` | Raise `max_bytes` in the config file. The default is 2 GiB. |
-| `is a rar archive and no unpacker was found` | `winget install 7zip.7zip` (Windows) or `apt install p7zip-full`. The standard Windows install directories are searched, so 7-Zip need not be on `PATH`. |
+| `is a rar archive and no unpacker was found` | Debian/Ubuntu: `apt install libarchive-tools unar` (Debian's own `7zip` package cannot read RAR); macOS: `brew install unar`; Windows 10 and 11 have `tar.exe` built in. An installed 7-Zip (`winget install 7zip.7zip`) or WinRAR is tried last; their standard install folders are searched, so they need not be on `PATH`. |
 | `no download link … scored high enough` | The page only offered navigation links to other mods. Open it, find the real download, and pin it as the entry's `url`. |
 | `archive contains .tp2 files […] but none of them is …` | The archive is a different mod — or the mod renamed itself. If the archive is right, add `"expect_tp2": "<the name shown>"` to its manifest entry. With `-c` a catalogue usually supplies this automatically. |
 | `the mod now ships as 'X' (your log says 'Y')` | Not an error. The mod renamed its folder; it was installed under the new name because that is what WeiDU needs. |
-| `did not contain this mod; installed from … instead` | The manifest's download was wrong and the catalogue's URL was used. Promote that URL into your manifest. |
+| `did not contain this mod; installed from … instead` | The manifest's download was wrong and the catalogue's URL was used. Promote that URL into your manifest. A `; <url>: <reason>` after it names a source refused for another reason, such as a path escaping the target folder. |
 
 ---
 
@@ -346,8 +450,12 @@ The default ceiling is 2 GiB because real mods reach it — BGGO is 1.4 GB.
   executed.
 * **Delete your work.** A destination directory is never removed; conflicts are
   reported and `--force` moves the old copy aside.
-* **Install mods.** WeiDU ordering and component selection stay with Infinity
-  Mod Forge.
+* **Run WeiDU itself.** It plans the order and, with `--emit-installer`,
+  writes a script that hands the plan to mod_installer (chapter 10). You read
+  the script and run it; iemod-fetch never executes it.
+* **Pick a side it was not told to.** `--resolve-conflicts` removes only what
+  an error-graded rule pins to components; every other conflict is listed for
+  you to decide, with its options, and `--decisions` applies your choice.
 
 ---
 
@@ -355,15 +463,38 @@ The default ceiling is 2 GiB because real mods reach it — BGGO is 1.4 GB.
 
 ## 9. Planning a rule-compliant install order
 
-### 9.1 Get the two databases
+### 9.1 The databases: kept current for you
+
+Since 2.4 nothing needs cloning. Each run refreshes a cache of the three
+community databases before it starts, at most once a day (ADR-0032), and uses
+it for every source flag you did not give:
+
+| Cached source | Stands in for |
+|---|---|
+| lcc-docs `db/mods.json` | `--catalogue` |
+| BWS-NG `data/rules`, krion64 `data/mods` | `--rules` |
+| BWS-NG `data/mods` | `--mod-db` |
+| krion64 `data/` | `--order-catalogue` |
+| BWS-NG `data/games/eet.json` | `--eet-sequence` (what may precede the EET core; with `--plan-order`, the place of a mod krion64 does not place) |
 
 ```bash
-git clone --depth 1 https://github.com/Selphira/BigWorldSetup-Next-Generation.git
-git clone --depth 1 https://github.com/krion64/krion64.github.io.git
+python3 iemod-fetch.pyz --update-data        # refresh now and stop; shows each commit
+python3 iemod-fetch.pyz ... --no-update-data # stay offline; use the cache as it is
+python3 iemod-fetch.pyz ... --no-default-data # only what the flags say
 ```
 
-Neither is vendored. They are data, passed by path, and refreshed with
-`git pull`. BWS-NG supplies the pairwise rules; krion64 supplies the 26-category
+Only the files the tool reads are fetched (about 25 MB the first time, then
+only what changed), each checked against the git hash GitHub lists for it.
+Before an update replaces the last good copy it must pass a guard: valid JSON,
+readable by the tool's own parsers, and no count (mods, rules, order entries)
+at zero or below half of the last good copy. A refused update is reported and
+that commit is not fetched again; an accepted one is reported with what
+changed (counts, mods added and removed, versions and statuses that moved).
+`api.data_status()` keeps the full list for the GUI.
+Offline, the last good copy is used and the header says how old it is. A
+GitHub token (see *GitHub credential*) is not required: a day's refresh is six
+API calls. An explicit path still wins, so a clone you maintain yourself works
+as before. BWS-NG supplies the pairwise rules; krion64 supplies the 26-category
 install-order skeleton plus a second, component-precise conflict database.
 
 ### 9.2 Check first, then plan
@@ -403,6 +534,9 @@ INSTALL ORDER PLAN
 | `reordering CANNOT fix these` | an incompatibility | drop one of the two mods |
 | `missing prerequisites` | a required mod is simply absent | add it, or drop the dependent |
 | `not in the catalogue` | neither database knows this mod | it kept its current place; verify by hand |
+| `placed by BWS-NG's EET sequence` | krion64 does not place the mod; BWS-NG's EET order does - right after the component before it there that krion64 places | check it; a rule or your Sorting Order still wins |
+| `placed by kind` | krion64 does not place the mod; lcc-docs' or BWS-NG's kind decides its category (interface, cosmetic, kit, NPC, smith, a quest by its games), after krion64's own mods there | check it; a rule or your Sorting Order still wins |
+| `no place: ...` (under `not in the catalogue`) | its kind decides nothing (gameplay, tactics, ...) or its kinds disagree | it kept its current place; verify by hand |
 
 ### 9.4 The component conflict report
 
@@ -458,7 +592,8 @@ false alarms in a mod-level checker.
 The plan is an **install order for a fresh install**. WeiDU applies changes in
 file order, so a game already installed does not become correctly ordered by
 overwriting its log — that would only make the log lie about the game. Feed the
-plan to mod_installer or Project Infinity and reinstall.
+plan to mod_installer or Project Infinity and reinstall — chapter 10
+generates the script that does it.
 
 The plan is also mod-granular, like Project Infinity's own sorting order. A rule
 that constrains one component of a mod against another component of the same mod
@@ -466,8 +601,248 @@ is reported, not solved.
 
 ---
 
+## 10. From plan to a running game: EET, BGEE or BG2EE, on Windows or Linux
+
+This chapter is the whole path for a **fresh** install: mods fetched, order
+planned, the conflicts the rules decide resolved, and one script that installs
+both games of an EET setup.
+
+### 10.1 What you need
+
+| | Where | Why |
+|---|---|---|
+| BGEE and BG2EE, **clean copies** | your store's install folder, copied | EET merges BGEE into BG2EE; the BG2EE copy becomes the EET game. Keep the originals |
+| SoD (optional) | part of BGEE | DlcMerger in the BGEE plan merges it first |
+| WeiDU | <https://github.com/WeiDUorg/weidu/releases> | the installer every mod uses |
+| mod_installer | <https://github.com/dark0dave/mod_installer/releases> (GPL-3.0) | runs WeiDU in plan order, both EET phases, answers prompts |
+| the two rule databases | chapter 9.1 | order + conflicts |
+
+**Linux: lower-case the mods.** mod_installer hands WeiDU lower-cased paths
+(`eet/eet.tp2`), so on a case-sensitive file system a mod shipped as `EET.TP2`
+is "not found" partway through the install. The script refuses mixed-case mods
+before anything runs. Either lower-case them as the last step before installing:
+
+```bash
+find Mods -depth -mindepth 1 -name '*[[:upper:]]*' -exec sh -c \
+  'for p; do d=${p%/*}; b=${p##*/}; mv -- "$p" "$d/$(printf %s "$b" | tr "[:upper:]" "[:lower:]")"; done' sh {} +
+```
+
+or, on an ext4 file system created with case-folding, pass
+`MOD_INSTALLER_ARGS=--casefold` and mod_installer marks the folders it copies
+case-insensitive. The game folders themselves need the usual WeiDU-on-Linux
+preparation (lower-case file names). Windows and macOS (case-insensitive by
+default) need neither.
+
+### 10.2 Fetch, plan, resolve, emit
+
+```bash
+# 1. fetch every mod your logs name into ./Mods (chapters 2-4)
+python3 -m iemod_fetch -m mod_downloads.json \
+    -w WeiDU.log:EET -w WeiDUBGEE.log:BGEE -t ./Mods
+
+# 2. plan the order, apply the conflict remedies the rules decide, write scripts
+python3 -m iemod_fetch --check-only -m mod_downloads.json \
+    -w WeiDU.log:EET -w WeiDUBGEE.log:BGEE -t ./Mods \
+    --rules BigWorldSetup-Next-Generation/data/rules \
+    --rules krion64.github.io/data/mods \
+    --order-catalogue krion64.github.io \
+    --plan-order ./plan --resolve-conflicts --simulate --emit-installer \
+    --language-preference it_IT,en_US
+```
+
+`--simulate` walks the plan the way WeiDU will run it, reading each staged
+mod's own tp2: the BGEE log on BGEE, the EET log on BG2EE, which becomes EET as
+soon as the EET core is in. It prints an `INSTALL SIMULATION` block listing
+every component WeiDU would refuse and the flag that refuses it:
+
+```text
+INSTALL SIMULATION (each component's own tp2 constraints, in plan order)
+  14 component(s) would install, 1 would be refused, 0 unchecked (no tp2 read)
+  WOULD REFUSE - mod_installer stops at the first of these:
+    [WeiDU.log] eet #0: EET refuses the merge: BG:EE mod(s) cdtweaks not in EET's compatibility.tbl (EET's M flag overrides this, at your own risk)
+```
+
+(That is the test suite's mock EET install, `tests/data/eetmock`, as handed
+over. While the EET core is refused the game stays BG2EE in the simulation, so
+the traps that only exist on EET show up once the merge is fixed;
+`--resolve-conflicts` re-simulates until nothing is refused, and on the mock
+ends at `12 component(s) would install, 0 would be refused`.)
+
+The usual EET traps it catches: a BGEE-only mod (DlcMerger) in the EET log; a
+mod that refuses EET (EEFixPack's `!GAME_IS ~eet~`) after the core; a BG2EE-only
+component after the core; a BG:EE mod EET cannot import (not in EET's
+`tbl/compatibility.tbl`), which makes the merge - and everything after it -
+fail; a REQUIRE whose component comes later; a FORBID whose component is
+already in. With `--resolve-conflicts` those components are removed from the
+plan, each with WeiDU's reason, until nothing is refused; the EET core itself
+is never removed. The mods' REQUIRE/FORBID also order the plan, with or without
+`--rules`.
+
+`--language-preference` is optional: each mod is set to the first listed
+language it offers (read from its own tp2, so the mods must be fetched first);
+a mod offering none keeps the language its log had and is listed. The game
+language handed to mod_installer follows the first preference unless
+`--game-language` says otherwise.
+
+The plan is component-level: where krion64 places a component in another
+category, or a rule names specific components, a mod is split across the order
+(the summary says how many). Conflicts are resolved at component level too,
+including two options of one WeiDU subcomponent group (the last one is kept).
+
+After the conflicts, the report shows each install's **engine limits**: kits
+against WeiDU's 256 (the game has 40), spell ids per wizard or priest level
+against WeiDU's 50, and spell states for information only - with the
+components that use them up. A mod krion64 has no counts for is named, and the
+totals then mean "at least". See ADR-0034 for where each number comes from.
+
+Point `-w` at the WeiDU.log **inside your game folder** and the tables are
+measured from the game itself instead (the header says `measured in ...`):
+the kits, spell slots and spell states it already holds, exactly as WeiDU
+will find them, plus krion64's estimate for what you chose that is not
+installed yet. Nothing in the game folder is changed.
+
+`./plan/` now holds:
+
+| File | What it is |
+|---|---|
+| `WeiDU-BGEE.log` | what installs on BGEE before the merge, in order |
+| `WeiDU.log` | EET core first, then every EET mod, EET_end last |
+| `RESOLUTION.json` | every component `--decisions` and `--resolve-conflicts` removed and why (`by`: `decision` or `rules`), what was accepted, and what is left for you |
+| `install-eet.sh` / `install-eet.cmd` | the installer for Linux/macOS and for Windows |
+
+Read the `CONFLICT RESOLUTION` block in the output. "Left for you to decide"
+means the rules say two things must not coexist but not which one goes. The
+conflict report lists, for each finding, its `id` and the options that clear
+it, with their cost; write your answer in a `decisions.json`
+(`schemas/decisions-v1.schema.json`) and re-run step 2 with `--decisions`:
+
+```json
+{"schema_version": 1,
+ "decisions": [
+   {"finding": "conflict-1887f4d4f9f06816", "choose": "option-a8395462ca46c2a6"},
+   {"finding": "conflict-d8821540fb81dfcd", "accept": "tested together, works"}]}
+```
+
+`choose` removes exactly that option's components from the plan - unless the
+option is a `keep-both`: offered for a conflict graded below `error`
+(two components touching the same thing), it keeps both and installs the one
+it names last, so what they share is left as that one makes it; the plan is
+made again with that order, and a rule it contradicts is reported. `accept`
+keeps both sides and the report shows the finding as accepted, with your
+reason. Decisions are applied before `--resolve-conflicts`, which never
+overrides them, and the plan is re-checked afterwards. A decision whose finding
+is no longer in the report (the selection changed) is listed as stale and not
+applied. Your WeiDU logs are never touched.
+
+For a single game (BGEE-only or BG2EE-only) pass one log; you get `install.sh`
+and `install.cmd`, which take `GAME_DIR`.
+
+### 10.3 Run it
+
+Linux / macOS:
+
+```bash
+BGEE_DIR="$HOME/games/BGEE-clean" BG2EE_DIR="$HOME/games/EET" \
+WEIDU="$HOME/bin/weidu" MOD_INSTALLER="$HOME/bin/mod_installer" \
+DRY_RUN=1 sh ./plan/install-eet.sh       # prints the command; drop DRY_RUN to install
+```
+
+Windows (`cmd`):
+
+```bat
+set "BGEE_DIR=D:\Games\BGEE-clean"
+set "BG2EE_DIR=D:\Games\EET"
+set "WEIDU=D:\Tools\weidu.exe"
+set "MOD_INSTALLER=D:\Tools\mod_installer.exe"
+plan\install-eet.cmd
+```
+
+Before anything runs, the script refuses: a folder without `chitin.key`; a game
+that already has mods (`ALLOW_EXISTING=1` if you mean it); a missing WeiDU or
+mod_installer. Then mod_installer installs the BGEE log onto BGEE and the EET
+log onto BG2EE, handing EET's core the BGEE path, and stops at the first error.
+
+| Variable | Default | |
+|---|---|---|
+| `BGEE_DIR`, `BG2EE_DIR` / `GAME_DIR` | none | required |
+| `WEIDU` | `weidu` on PATH | |
+| `MOD_INSTALLER` | `mod_installer` on PATH | |
+| `MODS_DIR` | the `-t` directory, relative to the plan | |
+| `LANGUAGE` | `--game-language` (en_US) | |
+| `DRY_RUN=1` | off | print, do not run |
+| `ALLOW_EXISTING=1` | off | install over a modded game |
+| `ALLOW_MIXED_CASE=1` | off | skip the Linux lower-case check |
+| `MOD_INSTALLER_ARGS` | none | passed through, e.g. `--casefold` |
+
+### 10.4 Check the game folders before installing
+
+Pass the two folders to the planning step and they are checked before a script
+is written - read only, nothing is changed:
+
+```bash
+python3 -m iemod_fetch --check-only ... --plan-order ./plan --resolve-conflicts \
+    --simulate --bgee-dir "$HOME/games/BGEE" --bg2ee-dir "$HOME/games/BG2EE"
+```
+
+Each folder is identified the way WeiDU itself does it - by marker files in
+`override/` and `chitin.key` (`oh1000.are` BG:EE, `oh6000.are` BG2:EE, `eet.flag`
+EET) - and held to what EET's readme asks for:
+
+| Refused | Why |
+|---|---|
+| the two folders swapped, or the same folder twice | EET needs both games, separately |
+| BG2:EE already EET (`override/EET.flag`) or already modded | the EET core needs a clean BG2:EE |
+| BG:EE without Siege of Dragonspear | EET needs BG:EE + SoD (`movies/sodcin05.wbm`) |
+| SoD still a `sod-dlc` archive and no DlcMerger in the plan | GOG/Steam ship SoD as a DLC WeiDU cannot see until DlcMerger merges it |
+
+Not checked, and printed as such: the patch level (EET wants v2.6.6.0 of both
+games) and whether the game data is intact.
+
+**Does everything end up in BG2:EE?** Yes. The EET core imports BG:EE + SoD into
+the BG2:EE folder and marks it `override/EET.flag`; from then on WeiDU calls
+that game EET and every later mod installs there. The BG:EE folder is only read.
+Before the core, BG2:EE must stay clean - EEFixPack is the one mod EET allows
+there, and `--resolve-conflicts` moves it there if your log has it after the core.
+
+### 10.5 Which versions to use
+
+| Component | Use | Why |
+|---|---|---|
+| BG:EE + SoD, BG2:EE | v2.6.6.0 | what EET states it supports |
+| WeiDU | v251.00 or newer (EET: "newer than v248") | the version CI tests with, pinned by sha256 |
+| mod_installer | the version CI pins (commit `3b6827a`, Cargo 16.0.0) | no release tag past v12.1.1 |
+| each mod | a release tag + sha256 via `--emit-pinned-manifest` | "latest" changes under you; a pin refuses anything that changed |
+
+A mod with no releases: fetch it once, then pin the archive's sha256 the same
+way. Never install from a branch head you did not pin.
+
+### 10.6 What is and is not guaranteed
+
+* The plan satisfies every order rule it was checked against, or says
+  `NOT COMPLIANT`; the script then carries an `UNRESOLVED` warning at its top.
+* The script's arguments match mod_installer v16's command line, checked
+  against its source **and by running the generated script with the real
+  mod_installer 16.0.0 binary**, a stand-in WeiDU recording every call: the BGEE
+  log installed in the BGEE folder first, then the EET core, the EET mods and
+  EET_end in BG2EE. The shell script is executed by the test suite; the `.cmd`
+  script on the Windows CI runners.
+* **Verified with the real WeiDU, without game data:** on two synthetic game
+  folders (an empty `chitin.key`, an empty `dialog.tlk`, WeiDU's marker file)
+  the real WeiDU v251 refuses exactly what `--simulate` predicts, installs the
+  resolved mock EET plan to the last component, and the generated
+  `install-eet.sh` runs through the real mod_installer into both folders. CI
+  does this on every push (`tests/test_real_weidu.py`).
+* **Not verified here:** an install against real game data - the merge itself,
+  mods whose bodies fail on content, the patch level. No CI runner owns the
+  games. The minimum for that test is BG:EE + SoD and BG2:EE v2.6.6.0 with
+  DlcMerger, EEFixPack, EET and EET_end. mod_installer labels its EET mode BETA.
+* A conflict no rule database knows about is not found. The databases are
+  community work; report what you find upstream.
+
+---
+
 * `README.md` — feature overview
 * `docs/AUDIT.md` — what was wrong with the original script, with evidence
-* `docs/ADR.md` — ADR-0001…0018, the design decisions and why
+* `docs/ADR.md` — ADR-0001…0028, the design decisions and why
 * `docs/PLAN.md` — three-phase audit / implementation / validation plan
 * `python3 -m iemod_fetch --help` — full flag reference

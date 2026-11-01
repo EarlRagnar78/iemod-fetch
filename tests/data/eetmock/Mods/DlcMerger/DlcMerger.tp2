@@ -1,0 +1,17 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [1, 3] only, verbatim from https://github.com/Argent77/A7-DlcMerger @ 8899fdb (DlcMerger/DlcMerger.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @1
+REQUIRE_PREDICATE (GAME_IS ~bgee bg2ee eet iwdee pstee~) @52
+SUBCOMPONENT @0
+DESIGNATED 1
+LABEL ~A7-DLCMERGER-MERGE_SOD~
+ACTION_IF (NOT GAME_IS ~bgee~) BEGIN
+  ABORT @50
+END
+BEGIN @3
+REQUIRE_PREDICATE (GAME_IS ~bgee bg2ee eet iwdee pstee~) @52
+REQUIRE_PREDICATE (NOT ~%WEIDU_ARCH%~ STR_EQ ~x86~) @53
+SUBCOMPONENT @0
+DESIGNATED 3
+LABEL ~A7-DLCMERGER-MERGE_ALL_DLCS~

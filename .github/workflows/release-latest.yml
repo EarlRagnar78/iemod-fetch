@@ -1,0 +1,39 @@
+# "Latest" on the newest release of CHANGELOG.md, every six hours.
+#
+# A back-fill's tag, created with RELEASE_TOKEN, starts the tagged commit's own
+# release workflow; an older one marks that back-fill Latest (4.0.0 over 4.0.1
+# on 2026-10-31), and nothing can change that run afterwards.
+# tools/release_notes.py latest puts it right. release.yml's notes job runs it
+# too, but only on pushes that change CHANGELOG.md or the version: this is the
+# run that always comes. Its own workflow and concurrency group, so a macOS
+# runner that takes a day to start (release-macos.yml) never holds it up.
+name: Release - Latest is the newest
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-latest
+  cancel-in-progress: true
+
+jobs:
+  latest:
+    name: Latest is the newest release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write          # a release's Latest flag, nothing else
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python tools/release_notes.py latest

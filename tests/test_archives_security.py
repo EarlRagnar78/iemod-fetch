@@ -137,7 +137,9 @@ def test_unrecognised_payload_is_refused(tmp_path):
 
 
 def test_missing_external_unpacker_is_an_explicit_error(tmp_path, monkeypatch):
-    monkeypatch.setattr("iemod_fetch.archives.shutil.which", lambda _: None)
+    # find_tool, not shutil.which: on Windows it also searches Program Files,
+    # and the CI runner has 7-Zip installed there.
+    monkeypatch.setattr("iemod_fetch.archives.find_tool", lambda _: None)
     p = tmp_path / "m.rar"
     p.write_bytes(b"Rar!\x1a\x07\x00" + b"\x00" * 600)
     with pytest.raises(ExtractionError, match="p7zip-full|unar|unrar"):
@@ -183,3 +185,106 @@ def test_the_missing_unpacker_message_names_the_windows_package(tmp_path, monkey
     p.write_bytes(b"Rar!\x1a\x07\x00" + b"\x00" * 600)
     with pytest.raises(ExtractionError, match="winget install 7zip"):
         safe_extract(str(p), str(tmp_path / "d"))
+
+
+# ------------------------------------------------------------ damaged input
+# A partial download from a forum host is the common case, not an attack. It
+# must surface as the package's own ExtractionError: a raw BadZipFile/EOFError
+# escapes every typed handler in the runner, is reported as an "internal
+# error", and skips the catalogue-alternate retry.
+def _deflated_zip_bytes():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("mod/mod.tp2", "BACKUP ~mod/backup~\n" * 5000)
+    return buf.getvalue()
+
+
+def _corrupt_crc(data):
+    damaged = bytearray(data)
+    damaged[60] ^= 0xFF          # inside the first member's compressed body
+    return bytes(damaged)
+
+
+def _tgz_bytes():
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        payload = ("BACKUP ~mod/backup~\n" * 5000).encode()
+        info = tarfile.TarInfo("mod/mod.tp2")
+        info.size = len(payload)
+        tf.addfile(info, io.BytesIO(payload))
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("name,damage", [
+    ("truncated.zip", lambda: _deflated_zip_bytes()[:-40]),
+    ("bad-crc.zip", lambda: _corrupt_crc(_deflated_zip_bytes())),
+    ("truncated.tar.gz", lambda: _tgz_bytes()[: len(_tgz_bytes()) // 2]),
+])
+def test_a_damaged_archive_is_an_extraction_error(tmp_path, name, damage):
+    p = tmp_path / name
+    p.write_bytes(damage())
+    with pytest.raises(ExtractionError, match="damaged or incomplete"):
+        safe_extract(str(p), str(tmp_path / "d"))
+
+
+# ------------------------------------------- external unpackers: preflight
+# zip and tar members are validated before a byte is written; rar/7z/exe went
+# straight to 7-Zip, guarded only by a symlink sweep afterwards. Where 7-Zip is
+# available its listing is now held to the same rules first.
+class Fake7z:
+    def __init__(self, listing, returncode=0):
+        self.listing = listing
+        self.returncode = returncode
+        self.extracted = False
+
+    def __call__(self, cmd, **_kw):
+        import subprocess as sp
+        if cmd[1] == "l":
+            return sp.CompletedProcess(cmd, self.returncode, self.listing.encode(), b"")
+        self.extracted = True
+        return sp.CompletedProcess(cmd, 0, b"", b"")
+
+
+def _listing(*entries):
+    return "".join(f"Path = {name}\nSize = {size}\nAttributes = A\n\n"
+                   for name, size in entries)
+
+
+@pytest.fixture
+def fake_7z(monkeypatch, tmp_path):
+    from iemod_fetch import archives
+
+    def install(listing, returncode=0):
+        fake = Fake7z(listing, returncode)
+        monkeypatch.setattr(archives, "find_tool",
+                            lambda n: "/opt/7z" if n in ("7z", "7za") else None)
+        monkeypatch.setattr(archives.subprocess, "run", fake)
+        arc = tmp_path / "m.7z"
+        arc.write_bytes(b"7z\xbc\xaf\x27\x1c" + b"\x00" * 600)
+        return fake, str(arc)
+    return install
+
+
+@pytest.mark.parametrize("bad", ["../evil.txt", "/etc/passwd", r"..\..\evil.dll",
+                                 r"C:\Windows\evil.dll"])
+def test_a_7z_member_escaping_the_root_is_refused_before_extraction(fake_7z, tmp_path,
+                                                                   bad):
+    fake, arc = fake_7z(_listing(("mod/mod.tp2", 10), (bad, 5)))
+    with pytest.raises(UnsafeArchive):
+        safe_extract(arc, str(tmp_path / "d"))
+    assert not fake.extracted
+
+
+def test_a_7z_bomb_is_refused_before_extraction(fake_7z, tmp_path, monkeypatch):
+    from iemod_fetch import archives
+    monkeypatch.setattr(archives, "MAX_TOTAL_BYTES", 1000)
+    fake, arc = fake_7z(_listing(("mod/mod.tp2", 10), ("mod/big.bif", 5000)))
+    with pytest.raises(UnsafeArchive, match="exceeds"):
+        safe_extract(arc, str(tmp_path / "d"))
+    assert not fake.extracted
+
+
+def test_a_clean_7z_listing_is_extracted(fake_7z, tmp_path):
+    fake, arc = fake_7z(_listing(("mod", 0), ("mod/mod.tp2", 10)))
+    safe_extract(arc, str(tmp_path / "d"))
+    assert fake.extracted

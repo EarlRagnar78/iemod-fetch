@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/report-v1.schema.json",
+  "title": "iemod-fetch run report, version 1",
+  "description": "--json-report: what each mod's fetch did, plus the rule findings. iemod_fetch/report.py is the authority.",
+  "type": "object",
+  "required": ["schema_version", "tool", "started_at", "duration_seconds", "counts",
+               "records", "unresolved", "findings", "suggestions", "warnings"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {"const": "iemod-fetch"},
+    "started_at": {"type": "string"},
+    "duration_seconds": {"type": "number"},
+    "counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "records": {"type": "array", "items": {
+      "type": "object", "required": ["folder", "status"],
+      "properties": {"folder": {"type": "string"}, "status": {"type": "string"}}}},
+    "unresolved": {"type": "array"},
+    "findings": {"type": "array", "items": {
+      "type": "object", "required": ["id", "kind", "severity", "summary"],
+      "properties": {"id": {"type": "string", "pattern": "^rule-[0-9a-f]{16}$"},
+                     "kind": {"type": "string"},
+                     "severity": {"enum": ["error", "warning", "info"]},
+                     "summary": {"type": "string"}}}},
+    "suggestions": {"type": "array"},
+    "warnings": {"type": "array"}
+  }
+}

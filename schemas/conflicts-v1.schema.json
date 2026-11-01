@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/conflicts-v1.schema.json",
+  "title": "iemod-fetch conflict report, version 1",
+  "description": "--conflict-report: component-level findings, each with a stable id and the options that clear it. iemod_fetch/conflicts.py is the authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "rules_checked",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "rules_checked": {
+      "type": "integer"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "log",
+          "scope",
+          "left",
+          "right",
+          "remedy"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^conflict-[0-9a-f]{16}$"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "log": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "cross-mod",
+              "same-mod",
+              "missing",
+              "known-issue"
+            ]
+          },
+          "left": {
+            "$ref": "#/$defs/side"
+          },
+          "right": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/side"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remedy": {
+            "type": "string"
+          },
+          "order_fixable": {
+            "type": "boolean"
+          },
+          "fixed_by_plan": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "description": "every way to clear the finding, recommended first then cheapest; an id goes into decisions.json",
+            "items": {
+              "$ref": "#/$defs/option"
+            }
+          }
+        }
+      }
+    },
+    "engine_limits": {
+      "type": "array",
+      "description": "per install: kits, spell states and spell slots the chosen components add (iemod_fetch/limits.py, ADR-0034)",
+      "items": {
+        "type": "object",
+        "required": [
+          "install",
+          "components",
+          "mods_without_data",
+          "eeex",
+          "spells_of_unknown_level",
+          "tables",
+          "measured_from"
+        ],
+        "properties": {
+          "install": {
+            "type": "string"
+          },
+          "components": {
+            "type": "integer"
+          },
+          "mods_without_data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "eeex": {
+            "type": "boolean"
+          },
+          "spells_of_unknown_level": {
+            "type": "integer"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "cap",
+                "base",
+                "added",
+                "total",
+                "severity",
+                "source",
+                "note",
+                "checked",
+                "added_by",
+                "measured"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "cap": {
+                  "type": "integer"
+                },
+                "base": {
+                  "type": "integer"
+                },
+                "added": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "severity": {
+                  "enum": [
+                    "error",
+                    "warning",
+                    null
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "checked": {
+                  "type": "boolean",
+                  "description": "false: shown, never warned on (the counts are not reliable)"
+                },
+                "added_by": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "mod",
+                      "component",
+                      "count"
+                    ]
+                  }
+                },
+                "measured": {
+                  "type": "boolean",
+                  "description": "The base was read from the game folder by WeiDU's own rules (KITLIST.2DA, SPELL.IDS/ADD_SPELL.IDS/SPxxLnn.SPL, SPLSTATE.IDS) rather than assumed; `added` then covers only components the game does not hold yet."
+                }
+              }
+            }
+          },
+          "measured_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The game folder the tables were measured in (it holds the WeiDU.log and chitin.key), or null when every table is an estimate."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "side": {
+      "type": "object",
+      "required": [
+        "mod",
+        "components",
+        "whole_mod"
+      ],
+      "properties": {
+        "mod": {
+          "type": "string"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "whole_mod": {
+          "type": "boolean"
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "action",
+        "mod",
+        "components",
+        "whole_mod",
+        "cost",
+        "applicable",
+        "recommended",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^option-[0-9a-f]{16}$"
+        },
+        "action": {
+          "enum": [
+            "deselect",
+            "reorder",
+            "install",
+            "keep-both"
+          ],
+          "description": "keep-both: keep both sides, the option's mod installed last (GUI-AUDIT item 28)"
+        },
+        "mod": {
+          "type": "string"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "whole_mod": {
+          "type": "boolean"
+        },
+        "cost": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "components the plan loses"
+        },
+        "applicable": {
+          "type": "boolean",
+          "description": "whether --decisions can apply it to the plan"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "what --resolve-conflicts does; only where the rules decide"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

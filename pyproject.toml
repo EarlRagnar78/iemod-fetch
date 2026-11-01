@@ -1,10 +1,11 @@
 # Packaging and tool configuration.
 #
-# One rule governs this file: the RUNTIME has no third-party dependency and
-# never will (ADR-0002). `dependencies` is empty and must stay empty — an
-# operator downloads one `.pyz` and runs it against the Python their game
-# machine already has. Everything under `optional-dependencies` is developer
-# tooling that CI installs and the shipped artifact never sees.
+# One Python version for everything (ADR-0043): the one in .python-version,
+# which requires-python, ruff, mypy and the classifiers below follow, and which
+# tools/upstream_versions.py checks every week. The runtime takes a library
+# only when it fixes a measured defect (ADR-0043, superseding ADR-0001/0002's
+# "none, ever"); `dependencies` lists them, requirements/runtime.txt pins them.
+# Everything under `optional-dependencies` is developer tooling.
 
 [build-system]
 requires = ["hatchling>=1.24"]
@@ -12,12 +13,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iemod-fetch"
-version = "2.0.0"
+version = "4.1.0"
 description = "Resolve, verify and stage Infinity Engine mods from a WeiDU log, and plan a rule-compliant install order"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 authors = [{ name = "gsamuele78" }]
 keywords = ["infinity-engine", "weidu", "baldurs-gate", "eet", "modding",
             "project-infinity", "install-order"]
@@ -28,16 +29,14 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Games/Entertainment",
   "Topic :: System :: Archiving :: Packaging",
   "Typing :: Typed",
 ]
-dependencies = []          # deliberately empty — see the note above
+# The runtime's libraries (ADR-0043); requirements/runtime.txt pins each by
+# version and hash for CI, the .pyz and the bundles.
+dependencies = ["filelock>=4.2.1,<5", "publicsuffixlist>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/gsamuele78/iemod-fetch"
@@ -47,15 +46,24 @@ Changelog = "https://github.com/gsamuele78/iemod-fetch/blob/main/CHANGELOG.md"
 
 [project.scripts]
 iemod-fetch = "iemod_fetch.cli:main"
+# The desktop wizard (ADR-0031). Needs the `gui` extra; the CLI does not.
+iemod-fetch-gui = "iemod_fetch_gui:main"
 
 [project.optional-dependencies]
 # Split so CI jobs install only what they need and a failure names its own gate.
-test = ["pytest>=7.4", "hypothesis>=6.100", "coverage[toml]>=7.4"]
-lint = ["ruff>=0.6"]
-typing = ["mypy>=1.11"]
+test = ["pytest>=7.4", "hypothesis>=6.100", "coverage[toml]>=7.4", "jsonschema>=4.18"]
+# Linters are pinned to a minor series: ruff and mypy add rules in minor
+# releases, and an unpinned linter turns a green main red overnight with no
+# change to the code (it did: ruff 0.17 added ISC004). Dependabot bumps these.
+lint = ["ruff~=0.17.1"]
+typing = ["mypy~=2.4"]
 security = ["bandit[toml]>=1.7", "pip-audit>=2.7"]
 arch = ["import-linter>=2.0"]
 mutation = ["mutmut>=3.0"]
+# The desktop wizard, iemod_fetch_gui (ADR-0031). PySide6 is LGPL-3.0, used
+# unmodified and dynamically linked. Never needed by the CLI or the .pyz.
+gui = ["PySide6>=6.11"]
+guitest = ["iemod-fetch[gui,test]", "pytest-qt>=4.4"]
 dev = [
   "iemod-fetch[test,lint,typing,security,arch]",
   "pre-commit>=3.7",
@@ -63,11 +71,12 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["iemod_fetch"]
+packages = ["iemod_fetch", "iemod_fetch_gui"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/iemod_fetch", "/tests", "/docs", "/tools", "/legacy",
-           "/build.py", "/aliases.json", "/README.md", "/LICENSE", "/CHANGELOG.md"]
+include = ["/iemod_fetch", "/iemod_fetch_gui", "/tests", "/docs", "/tools", "/legacy",
+           "/build.py", "/packaging", "/aliases.json", "/README.md", "/LICENSE",
+           "/CHANGELOG.md"]
 
 
 # ------------------------------------------------------------------ pytest
@@ -79,9 +88,9 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config -W error"
 filterwarnings = [
   "error",
-  # Hypothesis emits this on slow CI runners; it is a timing observation, not a
-  # defect in the code under test.
-  "ignore::hypothesis.errors.NonInteractiveExampleWarning",
+  # The Hypothesis-specific filter is added in tests/conftest.py, and only when
+  # Hypothesis is installed: a filter naming a missing module is itself a
+  # config error under --strict-config, which broke the stdlib-only CI job.
 ]
 markers = [
   "slow: excluded from the pull-request run, kept for the nightly job",
@@ -113,8 +122,8 @@ exclude_lines = [
 # -------------------------------------------------------------------- ruff
 [tool.ruff]
 line-length = 92
-target-version = "py39"
-src = ["iemod_fetch", "tests", "tools"]
+target-version = "py314"
+src = ["iemod_fetch", "iemod_fetch_gui", "tests", "tools"]
 
 [tool.ruff.lint]
 # Chosen, not defaulted. Each family earns its place; the ones left out are
@@ -139,7 +148,8 @@ select = [
   "S",      # bandit rules that are cheap to check at lint time
   "PLE",    # pylint errors only
   "PLW",    # pylint warnings
-  "FURB",   # modernisation that does not break 3.9
+  "FURB",   # modernisation
+  "UP",     # pyupgrade: the forms of the one Python in .python-version (ADR-0043)
   "T20",    # print() outside the renderers
 ]
 ignore = [
@@ -164,6 +174,8 @@ ignore = [
 "iemod_fetch/ordering.py" = ["T20"]
 "iemod_fetch/conflicts.py" = ["T20"]
 "iemod_fetch/cli.py" = ["T20"]
+# `run` writes its report to the stream it is given; silent by default.
+"iemod_fetch/api.py" = ["T20"]
 # 0o755 on a zipapp is what makes it executable; that is the artifact's job.
 "build.py" = ["T20", "S603", "S607", "S103"]
 # S105 flags the OAuth device-flow ENDPOINT URL as a hardcoded password.
@@ -171,6 +183,8 @@ ignore = [
 # `random` supplies retry jitter; nothing security-bearing reads it.
 "iemod_fetch/net.py" = ["S311"]
 "tools/*" = ["T20"]
+# `random` draws a benchmark's orders and moves, seeded; nothing secret.
+"tools/order_check_benchmark.py" = ["T20", "S311"]
 # The original script is kept verbatim so its defects stay reproducible
 # (ADR-0001). Linting it would mean changing it, which destroys the evidence.
 "legacy/*" = ["ALL"]
@@ -194,8 +208,9 @@ quote-style = "preserve"
 
 # -------------------------------------------------------------------- mypy
 [tool.mypy]
-python_version = "3.9"
-files = ["iemod_fetch"]
+# The one Python of .python-version (ADR-0043).
+python_version = "3.14"
+files = ["iemod_fetch", "iemod_fetch_gui"]
 # Not `strict = true`: `disallow_untyped_defs` across 26 modules at once is a
 # 130-signature change with no behavioural benefit, and a big mechanical diff
 # hides the real ones. These flags are the subset that catches BUGS rather than
@@ -209,10 +224,8 @@ no_implicit_optional = true
 strict_equality = true
 check_untyped_defs = true
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "legacy.*"
-ignore_errors = true          # evidence, not code — see ADR-0001
+# `legacy/` is not in `files`, so it is never checked — evidence, not code
+# (ADR-0001). No override is needed, and mypy warns about an unused one.
 
 
 # ------------------------------------------------------------------ bandit

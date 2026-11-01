@@ -1,0 +1,13 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [2370, 4010] only, verbatim from https://github.com/Gibberlings3/Tweaks-Anthology @ 7649ced (cdtweaks/setup-cdtweaks.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @237001 DESIGNATED 2370
+GROUP @9
+REQUIRE_PREDICATE ((FILE_EXISTS_IN_GAME ~clsrcreq.2da~) AND (!MOD_IS_INSTALLED ~tobex/tobex.tp2~ ~100~)) @25
+REQUIRE_PREDICATE !MOD_IS_INSTALLED ~dw_talents/dw_talents.tp2~ 40000 @24
+SUBCOMPONENT @237000
+LABEL ~cd_tweaks_alter_dualclass_humans_no_nonhumans_no~
+BEGIN @401000 DESIGNATED 4010
+GROUP @0
+REQUIRE_PREDICATE     GAME_IS ~tob bg2ee bgt~   @25
+LABEL ~cd_tweaks_improved_fate_spirit_summoning~

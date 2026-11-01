@@ -1,0 +1,23 @@
+// Excerpt for iemod-fetch's mock EET test: the install-time constraint lines of
+// components [0] only, verbatim from https://github.com/Gibberlings3/EET @ 6e51624 (EET/EET.tp2).
+// Not installable; the mod's own licence applies to these lines.
+BEGIN @900000
+REQUIRE_PREDICATE ENGINE_IS ~bg2ee~ @900001
+FORBID_COMPONENT ~setup-bp-bgt-worldmap.tp2~ ~0~ @900002
+DESIGNATED 0
+// EET's merge check, verbatim from EET/EET.tp2 lines 229-243 (same commit):
+OUTER_SET cd_eefp_bgee = 0
+ACTION_IF FILE_EXISTS ~%bgee_dir%/WeiDU.log~ BEGIN
+	COPY + ~%bgee_dir%/WeiDU.log~ ~%MOD_FOLDER%/temp~
+    COUNT_REGEXP_INSTANCES "^~EEFIXPACK[/\\]SETUP-EEFIXPACK\.TP2~ #[0-9]+ #0" cd_eefp_bgee
+		REPLACE_TEXTUALLY ~^//.*~ ~~ //removes "Recently uninstalled" lines
+		COUNT_REGEXP_INSTANCES "^~SOA[/\\]SETUP-SOA\.TP2~ #[0-9]+ #1 " num_matches
+		PATCH_IF (num_matches > 0) BEGIN
+			PATCH_FAIL @900006 //You've installed wrong The Stone of Askavar component. EET is compatible with Default version (option 1 during installation).
+		END
+		COUNT_REGEXP_INSTANCES "^~DRIZZTSAGA[/\\]DRIZZTSAGA\.TP2~ #[0-9]+ #1 " num_matches
+		PATCH_IF (num_matches > 0) BEGIN
+			PATCH_FAIL @900007 //You've installed wrong Drizzt Saga component. EET is compatible with Default version (option 1 during installation).
+		END
+		REPLACE_TEXTUALLY ~^.~ ~~
+		REPLACE_TEXTUALLY ~^.*[/\\]\(.*.TP2\)~ ~\1~

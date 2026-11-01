@@ -20,6 +20,10 @@ REAL_GIT_CREDENTIAL = auth._from_git_credential
 VALID = "ghp_" + "A" * 36
 GCM_OAUTH = "gho_" + "B" * 36
 FINE_GRAINED = "github_pat_" + "C" * 30
+# A GitHub App installation token since the 2026 stateless format: a JWT after
+# the prefix, about 520 characters, with dots and base64url's '-' and '_'.
+STATELESS_S2S = ("ghs_eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9." + "eyJpc3MiOi-_" * 30
+                 + "." + "Sig_-0aZ" * 15)
 
 
 class FakeProc:
@@ -106,7 +110,7 @@ def run_helper(monkeypatch, stdout=b"", returncode=0, exc=None):
     return seen
 
 
-@pytest.mark.parametrize("token", [VALID, GCM_OAUTH, FINE_GRAINED])
+@pytest.mark.parametrize("token", [VALID, GCM_OAUTH, FINE_GRAINED, STATELESS_S2S])
 def test_a_stored_github_token_is_returned(monkeypatch, token):
     run_helper(monkeypatch, f"username=x\npassword={token}\n".encode())
     assert REAL_GIT_CREDENTIAL() == token
@@ -116,6 +120,12 @@ def test_a_stored_github_token_is_returned(monkeypatch, token):
     "hunter2",                       # an actual password, not a token
     "",                              # empty
     "ghp_short",                     # malformed
+    "ghp_" + "A" * 20 + ".x",        # a dot belongs to the stateless ghs_ only
+    "ghs_" + "." * 40,               # shaped like a JWT, but nothing in it
+    "ghs_a.b.c",                     # the shape, but too short
+    "ghs_" + "a" * 20 + ".b..c" + "d" * 20,       # an empty segment
+    "ghs_" + "a" * 20 + ".b.c.d" + "e" * 20,      # four segments
+    "ghs_" + "a" * 20 + ".b.c" + "d" * 20 + "==",  # base64 padding
     "not-a-token-at-all",
 ])
 def test_a_non_token_password_is_never_used_as_a_bearer(monkeypatch, password):

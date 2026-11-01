@@ -1,0 +1,221 @@
+# The wizard's macOS bundle (ADR-0040), apart from the release. GitHub's macOS
+# runners started no job from 2026-10-21 to 2026-10-23: a job waiting for one
+# stays queued, not failed, and a queued job in release.yml kept its run - and
+# the `release` concurrency group, so the next release too - waiting. Here it
+# holds up nothing: release.yml starts it for each new release (a dispatch with
+# the tag), and every six hours it looks at the latest release and, when it
+# has no macOS bundle yet, builds one from the release's tag, attests it and
+# attaches it, with its own .sha256. A pull request that changes the packaging
+# rehearses the build only. (A schedule, not workflow_run: nothing from another
+# run is trusted, and a quiet check costs one short Linux job.) The command
+# line's macOS bundle (cli_bundle.py) is built and attached the same way; each
+# zip is built and uploaded only when the release lacks it.
+name: Release - macOS wizard bundle
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  pull_request:
+    paths: ["packaging/**", ".github/workflows/release-macos.yml"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Attach to this release (e.g. v3.0.0); empty = the latest"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  # One group for every run that may attach (a dispatch from release.yml, the
+  # schedule, a dispatch by hand): two at once both saw no bundle and both
+  # built and uploaded one, leaving a zip and a .sha256 from different builds
+  # (review of #46). Not cancelled: a running build is never thrown away. A
+  # run still pending is replaced by a newer one, which looks at the latest
+  # release - the same tag, unless a dispatch named an older one by hand.
+  # A pull request's rehearsal has its own group.
+  group: release-macos-${{ github.event_name == 'pull_request' && github.ref || 'attach' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  target:
+    name: Which release needs a macOS bundle
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      build: ${{ steps.pick.outputs.build }}
+      gui: ${{ steps.pick.outputs.gui }}
+      cli: ${{ steps.pick.outputs.cli }}
+      repair: ${{ steps.pick.outputs.repair }}
+    steps:
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          WANTED: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            { echo "tag="; echo "build=true"; echo "gui=true"; echo "cli=true"; } >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          tag="${WANTED:-$(gh release view --repo "$REPOSITORY" --json tagName -q .tagName)}"
+          # each zip on its own (review of #70): a release missing either one
+          # is built again, and `attach` uploads only the one it lacks
+          gui=$(gh release view "$tag" --repo "$REPOSITORY" --json assets \
+                -q '[.assets[].name | select(startswith("iemod-fetch-gui-macos") and endswith(".zip"))] | length')
+          cli=$(gh release view "$tag" --repo "$REPOSITORY" --json assets \
+                -q '[.assets[].name | select(startswith("iemod-fetch-cli-macos") and endswith(".zip"))] | length')
+          # a release made before ADR-0040 has nothing to build the wizard
+          # with, one made before GUI-AUDIT item 36 nothing for the command line
+          if gh api "repos/$REPOSITORY/contents/packaging/gui_bundle.py?ref=$tag" --silent 2>/dev/null; then
+            buildable=yes; else buildable=no; fi
+          if gh api "repos/$REPOSITORY/contents/packaging/cli_bundle.py?ref=$tag" --silent 2>/dev/null; then
+            clibuildable=yes; else clibuildable=no; fi
+          # a zip whose .sha256 did not get up (a failed second upload) is
+          # repaired from the digest GitHub keeps for it, never rebuilt
+          bare=$(gh release view "$tag" --repo "$REPOSITORY" --json assets -q '
+                 [.assets[].name] as $n
+                 | [$n[] | select(test("^iemod-fetch-(gui|cli)-macos") and endswith(".zip"))
+                         | select((. + ".sha256") as $s | any($n[]; . == $s) | not)] | length')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # each built only when its zip is missing: a wizard build that fails
+          # on a newer image never keeps the command line's zip away (review of #70)
+          need_gui=false; need_cli=false
+          if [ "$gui" = 0 ] && [ "$buildable" = yes ]; then need_gui=true; fi
+          if [ "$cli" = 0 ] && [ "$clibuildable" = yes ]; then need_cli=true; fi
+          if [ "$need_gui" = true ] || [ "$need_cli" = true ]; then build=true; else build=false; fi
+          { echo "build=$build"; echo "gui=$need_gui"; echo "cli=$need_cli"; } >> "$GITHUB_OUTPUT"
+          if [ "$bare" != 0 ]; then echo "repair=true"; else echo "repair=false"; fi >> "$GITHUB_OUTPUT"
+          echo "release $tag: macOS wizard zips $gui, command-line zips $cli (without .sha256: $bare); scripts: wizard $buildable, command line $clibuildable"
+
+  build:
+    name: Wizard bundle (macos-latest)
+    needs: target
+    if: needs.target.outputs.build == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.target.outputs.tag }}
+      # A tag names its own Python (ADR-0043); one made before .python-version
+      # existed (3.0.0) was built on 3.12, and is built on it again.
+      - name: The Python this tag was built with
+        run: test -f .python-version || echo 3.12 > .python-version
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version-file: .python-version }
+      - name: The runtime's libraries, by hash (ADR-0043)
+        run: test ! -f requirements/runtime.txt || pip install --require-hashes -r requirements/runtime.txt
+      - run: pip install ".[gui]" "pyinstaller==6.22.3"
+      # with the mod_installer it installs with (ADR-0046), when the tag has
+      # packaging/mod_installer.py
+      - name: Build mod_installer, then the bundle with it; sign ad hoc, zip, start the unzipped copy once
+        if: needs.target.outputs.gui == 'true'
+        run: |
+          if [ -f packaging/mod_installer.py ]; then
+            python packaging/mod_installer.py --out "$RUNNER_TEMP/mod_installer"
+            python packaging/gui_bundle.py --dist gui-dist --mod-installer "$RUNNER_TEMP/mod_installer"
+          else
+            python packaging/gui_bundle.py --dist gui-dist
+          fi
+      # The command line too (GUI-AUDIT item 36): macOS's own python3 is 3.9.
+      - name: The command line - build, run once, zip
+        if: needs.target.outputs.cli == 'true'
+        run: python packaging/cli_bundle.py --dist gui-dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-gui
+          path: gui-dist/*.zip
+
+  attach:
+    name: Attest and attach to the release
+    needs: [target, build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # uploads to the release release.yml published
+      id-token: write          # Sigstore, keyless
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { name: macos-gui, path: dist }
+      # Only what the release lacks is attested and uploaded: a zip already
+      # published keeps its own attestation, and these builds are not
+      # byte-for-byte reproducible (review of #70).
+      - id: lacks
+        name: Keep only the zips the release does not have
+        env:
+          TAG: ${{ needs.target.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          present=$(gh release view "$TAG" --repo "$REPOSITORY" --json assets -q '.assets[].name')
+          for zip in dist/iemod-fetch-*.zip; do
+            if printf '%s\n' "$present" | grep -qxF "${zip#dist/}"; then
+              echo "release $TAG already has ${zip#dist/}; left out"
+              rm "$zip"
+            fi
+          done
+          if ls dist/iemod-fetch-*.zip > /dev/null 2>&1; then echo "any=yes"; else echo "any=no"; fi >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.lacks.outputs.any == 'yes'
+        with:
+          subject-path: dist/iemod-fetch-*.zip
+      - name: Upload it with its digest
+        if: steps.lacks.outputs.any == 'yes'
+        env:
+          TAG: ${{ needs.target.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # Asked again here, not only by `target`, and for each zip: a
+          # published bundle is never replaced, so one a player may have
+          # checked keeps its .sha256, and a release that has the wizard's
+          # zip but not the command line's gets only the one it lacks.
+          present=$(gh release view "$TAG" --repo "$REPOSITORY" --json assets -q '.assets[].name')
+          cd dist
+          for zip in iemod-fetch-*.zip; do
+            if printf '%s\n' "$present" | grep -qxF "$zip"; then
+              echo "release $TAG already has $zip; not uploaded"
+              continue
+            fi
+            sha256sum "$zip" > "$zip.sha256"
+            # The zip first, its .sha256 after: a .sha256 never stands
+            # without its zip. A failed zip upload leaves no zip, so the
+            # next check builds again; a failed .sha256 upload is repaired by
+            # `digest` at the next check (review of #46).
+            gh release upload "$TAG" "$zip" --repo "$REPOSITORY"
+            gh release upload "$TAG" "$zip.sha256" --repo "$REPOSITORY" --clobber
+          done
+
+  digest:
+    name: Put back a missing .sha256 from the published zip's digest
+    needs: target
+    if: needs.target.outputs.repair == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # uploads the .sha256 to the release
+    steps:
+      - name: Write each missing .sha256 from GitHub's digest of its zip
+        env:
+          TAG: ${{ needs.target.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir sums && cd sums
+          gh api "repos/$REPOSITORY/releases/tags/$TAG" --jq '
+            [.assets[].name] as $n
+            | .assets[]
+            | select(.name | test("^iemod-fetch-(gui|cli)-macos") and endswith(".zip"))
+            | select((.name + ".sha256") as $s | any($n[]; . == $s) | not)
+            | "\(.name) \(.digest)"' |
+          while read -r name digest; do
+            case "$digest" in
+              sha256:????????????????????????????????????????????????????????????????) ;;
+              *) echo "no sha256 digest for $name: $digest"; exit 1 ;;
+            esac
+            printf '%s  %s\n' "${digest#sha256:}" "$name" > "$name.sha256"
+            gh release upload "$TAG" "$name.sha256" --repo "$REPOSITORY" --clobber
+          done

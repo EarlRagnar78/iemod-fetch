@@ -1,0 +1,16 @@
+# The runtime's libraries (ADR-0043): each fixes a measured defect, is pure
+# Python, is pinned here by version and wheel hash, is scanned by pip-audit and
+# bumped by Dependabot, and is carried inside the .pyz and the bundles.
+#
+#   pip install --require-hashes -r requirements/runtime.txt
+#
+# publicsuffixlist (MPL-2.0, unmodified, licence shipped with it): the Public
+# Suffix List, so that two users' pages on github.io are two sites (net.py).
+#
+# filelock (MIT): a lock around the community-data folder, which the wizard and
+# the CLI both refresh (datasync.py). 4.2.1 or later: CVE-2026-112940 is in
+# 3.20.4-4.2.0 (ReadWriteLock, which iemod-fetch does not use; ADR-0043).
+filelock==4.2.4 \
+    --hash=sha256:301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e
+publicsuffixlist==1.1.2.20261023 \
+    --hash=sha256:c792aa3fd37076c15f1c9d9897e59e9d58e8bacdf4315eb9cc10141a26d8995c

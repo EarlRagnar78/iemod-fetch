@@ -1,0 +1,10 @@
+{
+  "_source": "https://github.com/Selphira/BigWorldSetup-Next-Generation data/rules/incompatibilities.json, one entry verbatim",
+  "rules": [
+    {
+      "rule": "stratagems(4100):cdtweaks(2370,2372,4020)",
+      "severity": "error",
+      "description": "Conflits entre le mod \"Tweak Anthology\" et \"Stratagems\""
+    }
+  ]
+}

@@ -8,7 +8,6 @@ when present: `sha256`, `release_tag`, and `asset`. See ADR-0004.
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from .errors import ManifestError
 from .naming import is_safe_component
@@ -29,15 +28,15 @@ class ModSource:
     """Where a mod can be obtained. Distinct from *where it installs to*."""
     key: str                              # manifest 'tp2' value, catalogue id
     name: str
-    url: Optional[str] = None
-    github: Optional[str] = None
-    sha256: Optional[str] = None
-    release_tag: Optional[str] = None     # pin a specific release
-    asset: Optional[str] = None           # pin a specific asset filename/glob
-    folder: Optional[str] = None          # explicit install folder override
-    expect_tp2: Optional[str] = None      # tp2 the archive really ships, if it
+    url: str | None = None
+    github: str | None = None
+    sha256: str | None = None
+    release_tag: str | None = None     # pin a specific release
+    asset: str | None = None           # pin a specific asset filename/glob
+    folder: str | None = None          # explicit install folder override
+    expect_tp2: str | None = None      # tp2 the archive really ships, if it
                                           # differs from the WeiDU folder name
-    notes: Optional[str] = None
+    notes: str | None = None
 
     @property
     def lookup(self) -> str:
@@ -46,15 +45,15 @@ class ModSource:
 
 @dataclass
 class Manifest:
-    sources: Dict[str, ModSource] = field(default_factory=dict)
-    order: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    generated: Optional[str] = None
+    sources: dict[str, ModSource] = field(default_factory=dict)
+    order: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    generated: str | None = None
 
 
 def load_manifest(path, allow_http: bool = False) -> Manifest:
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
     except OSError as exc:
         raise ManifestError(f"cannot read manifest {path}: {exc}") from exc

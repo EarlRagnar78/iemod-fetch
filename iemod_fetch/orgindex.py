@@ -19,13 +19,16 @@ register in. This is a different mechanism with a different trust boundary:
 Name similarity narrows the field. Owner allowlist plus tp2 verification is
 what makes it safe.
 """
+import contextlib
 import json
 import os
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Sequence
+from typing import Any, Protocol
+from collections.abc import Sequence
 
+from .atomic import write_text
 from .errors import ModFetchError
 from .naming import normalize_key
 from .plan import _strip_prefix
@@ -85,12 +88,12 @@ class OwnerCandidate:
 @dataclass
 class OwnerIndex:
     """Lazily-built, disk-cached map of trusted owner -> repositories."""
-    client: "JsonClient"
+    client: JsonClient
     owners: Sequence[str] = SHIPPED_TRUSTED_OWNERS
-    cache_path: Optional[str] = None
+    cache_path: str | None = None
     ttl: int = CACHE_TTL_SECONDS
-    _repos: Dict[str, List[RepoRef]] = field(default_factory=dict)
-    _failed: Dict[str, str] = field(default_factory=dict)
+    _repos: dict[str, list[RepoRef]] = field(default_factory=dict)
+    _failed: dict[str, str] = field(default_factory=dict)
     _loaded: bool = False
 
     # ------------------------------------------------------------- caching
@@ -119,18 +122,11 @@ class OwnerIndex:
                    "owners": {(repos[0].owner if repos else owner):
                               [r.name for r in repos]
                               for owner, repos in self._repos.items()}}
-        try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.cache_path)) or ".",
-                        exist_ok=True)
-            tmp = self.cache_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(payload, fh)
-            os.replace(tmp, self.cache_path)
-        except OSError:
-            pass                       # a cold cache is slow, not wrong
+        with contextlib.suppress(OSError):   # a cold cache is slow, not wrong
+            write_text(self.cache_path, json.dumps(payload))
 
     # ------------------------------------------------------------ fetching
-    def repos_for(self, owner: str) -> List[RepoRef]:
+    def repos_for(self, owner: str) -> list[RepoRef]:
         self._load_cache()
         key = owner.lower()
         if key in self._repos:
@@ -138,7 +134,7 @@ class OwnerIndex:
         if key in self._failed:
             return []
 
-        collected: List[RepoRef] = []
+        collected: list[RepoRef] = []
         for page in range(1, _MAX_PAGES + 1):
             url = (f"https://api.github.com/users/{urllib.parse.quote(owner)}/repos"
                    f"?per_page={_PER_PAGE}&page={page}&type=owner&sort=full_name")
@@ -165,19 +161,19 @@ class OwnerIndex:
         return collected
 
     @property
-    def failures(self) -> Dict[str, str]:
+    def failures(self) -> dict[str, str]:
         return dict(self._failed)
 
     # ------------------------------------------------------------ matching
     def candidates(self, folder: str, display_name: str = "",
-                   limit: int = 3) -> List[OwnerCandidate]:
+                   limit: int = 3) -> list[OwnerCandidate]:
         """Score every repo in the trusted owners against this mod's identity."""
         import difflib
 
         folder_key = normalize_key(folder)
         folder_core = _strip_prefix(folder_key)
         name_key = normalize_key(display_name)
-        out: List[OwnerCandidate] = []
+        out: list[OwnerCandidate] = []
 
         for owner in self.owners:
             for repo in self.repos_for(owner):
@@ -211,14 +207,14 @@ class OwnerIndex:
         return out[:limit]
 
 
-def load_trusted_owners(path: Optional[str], manifest=None,
-                        extra: Sequence[str] = ()) -> List[str]:
+def load_trusted_owners(path: str | None, manifest=None,
+                        extra: Sequence[str] = ()) -> list[str]:
     """
     Build the allowlist: shipped houses + every owner the manifest already
     trusts + anything passed explicitly. An owner your catalogue already
     depends on is, by definition, one you have already accepted.
     """
-    owners: List[str] = []
+    owners: list[str] = []
     seen = set()
 
     def add(value):

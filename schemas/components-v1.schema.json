@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gsamuele78/iemod-fetch/schemas/components-v1.schema.json",
+  "title": "iemod-fetch staged mod components, version 1",
+  "description": "Output of --describe-mods: every staged tp2's languages and components, named as WeiDU names them in --list-components and WeiDU.log. iemod_fetch/tra.py is the authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mods"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "mods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tp2",
+          "version",
+          "language",
+          "languages",
+          "components"
+        ],
+        "properties": {
+          "tp2": {
+            "type": "string",
+            "description": "relative to --target, as WeiDU is given it"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "language": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "the WeiDU language index the names are in"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "index",
+                "name",
+                "directory"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "name": {
+                  "type": "string"
+                },
+                "directory": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "number",
+                "name",
+                "title",
+                "subgroup",
+                "groups",
+                "labels",
+                "forced",
+                "deprecated",
+                "resolved"
+              ],
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Subgroup -> Title: VERSION, as --list-components and WeiDU.log print it (a line break is a space)"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "the component's own name, as --list-components-json gives it (line breaks dropped)"
+                },
+                "subgroup": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "its SUBCOMPONENT (FORCED_ or not): options of one subgroup exclude each other"
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "its GROUPs, the categories a mod offers its components in"
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "its LABELs: names that stay the same when the number changes (Project Infinity uses them)"
+                },
+                "forced": {
+                  "type": "boolean",
+                  "description": "FORCED_SUBCOMPONENT: one option of the subgroup must be chosen"
+                },
+                "deprecated": {
+                  "type": "boolean",
+                  "description": "DEPRECATED: WeiDU lists and installs it no more"
+                },
+                "resolved": {
+                  "type": "boolean",
+                  "description": "false where WeiDU too prints UNDEFINED STRING"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

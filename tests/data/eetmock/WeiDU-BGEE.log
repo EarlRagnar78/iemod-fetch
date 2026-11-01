@@ -1,0 +1,9 @@
+// Log of Currently Installed WeiDU Mods
+// The top of the file is the 'oldest' mod
+// Format: ~TP2_Path~ #lang #comp // Name : Version
+~DlcMerger\DlcMerger.tp2~ #0 #1 // Merge "Siege of Dragonspear" into the game
+~eefixpack\setup-eefixpack.tp2~ #0 #0 // Core Fixes
+~eefixpack\setup-eefixpack.tp2~ #0 #1 // Beta Core Fixes
+~eefixpack\setup-eefixpack.tp2~ #0 #2 // Game Text Update
+~bg1ub\bg1ub.tp2~ #0 #0 // Ice Island Level Two Restoration
+~cdtweaks\setup-cdtweaks.tp2~ #0 #2370 // Tweak installed on BG:EE before the merge
